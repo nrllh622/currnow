@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "CurrNow",
+    "slug": "currnow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "currnow",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.currnow.app",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "com.currnow.app",
+      "supportsTablet": true
+    }
+  }
+}
