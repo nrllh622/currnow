@@ -10,9 +10,29 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import mobileAds, {
+  AdsConsent,
+  BannerAd,
+  BannerAdSize,
+  TestIds,
+} from 'react-native-google-mobile-ads';
 
 const API_URL = 'https://open.er-api.com/v6/latest/USD';
+
+// --- AdMob ---------------------------------------------------------------
+// Closed testing boyunca TEST reklamı gösteriyoruz. Kendi CANLI reklamına
+// tıklamak AdMob hesabını KALICI olarak bloklayabilir. Uygulama Play'de tam
+// yayına geçip gerçek gelir istediğinde, sadece şu satırı false yap:
+const USE_TEST_ADS = true;
+
+const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
+const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
+// ------------------------------------------------------------------------
 
 type Currency = { code: string; name: string; flag: string };
 
@@ -66,14 +86,38 @@ export default function App() {
 }
 
 function CurrNow() {
+  const insets = useSafeAreaInsets();
+
   const [rates, setRates] = useState<Rates | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adsReady, setAdsReady] = useState(false);
 
   const [base, setBase] = useState('USD');
   const [amount, setAmount] = useState('1');
+
+  // Initialise AdMob once: gather UMP/GDPR consent, then start the SDK.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await AdsConsent.gatherConsent();
+      } catch (e) {
+        // Consent could not be gathered (e.g. offline). Continue anyway.
+      }
+      try {
+        await mobileAds().initialize();
+      } catch (e) {
+        // Initialise failed; banner simply won't show.
+      }
+      if (mounted) setAdsReady(true);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadRates = useCallback(async () => {
     setError(null);
@@ -200,6 +244,7 @@ function CurrNow() {
       )}
 
       <FlatList
+        style={styles.listFlex}
         data={CURRENCIES}
         keyExtractor={(item) => item.code}
         renderItem={renderItem}
@@ -209,6 +254,12 @@ function CurrNow() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0F766E" />
         }
       />
+
+      {adsReady ? (
+        <View style={[styles.banner, { paddingBottom: insets.bottom }]}>
+          <BannerAd unitId={BANNER_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -256,6 +307,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 2,
   },
+  listFlex: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
   row: {
     flexDirection: 'row',
@@ -301,4 +353,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   retryText: { color: '#FFFFFF', fontWeight: '700' },
+  banner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
 });
