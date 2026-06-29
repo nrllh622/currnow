@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   SafeAreaProvider,
   SafeAreaView,
@@ -34,35 +35,35 @@ const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
 const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
 // ------------------------------------------------------------------------
 
-type Currency = { code: string; name: string; flag: string };
+type Currency = { code: string; name: string; symbol: string; color: string };
 
 // Curated default list. USD-based rates are fetched once and cross-rates
 // are computed locally, so changing the base never needs a new request.
 const CURRENCIES: Currency[] = [
-  { code: 'USD', name: 'US Dollar', flag: '🇺🇸' },
-  { code: 'EUR', name: 'Euro', flag: '🇪🇺' },
-  { code: 'GBP', name: 'British Pound', flag: '🇬🇧' },
-  { code: 'TRY', name: 'Turkish Lira', flag: '🇹🇷' },
-  { code: 'JPY', name: 'Japanese Yen', flag: '🇯🇵' },
-  { code: 'CHF', name: 'Swiss Franc', flag: '🇨🇭' },
-  { code: 'CAD', name: 'Canadian Dollar', flag: '🇨🇦' },
-  { code: 'AUD', name: 'Australian Dollar', flag: '🇦🇺' },
-  { code: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' },
-  { code: 'AED', name: 'UAE Dirham', flag: '🇦🇪' },
-  { code: 'SAR', name: 'Saudi Riyal', flag: '🇸🇦' },
-  { code: 'RUB', name: 'Russian Ruble', flag: '🇷🇺' },
-  { code: 'INR', name: 'Indian Rupee', flag: '🇮🇳' },
-  { code: 'BRL', name: 'Brazilian Real', flag: '🇧🇷' },
-  { code: 'MXN', name: 'Mexican Peso', flag: '🇲🇽' },
-  { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦' },
-  { code: 'SEK', name: 'Swedish Krona', flag: '🇸🇪' },
-  { code: 'NOK', name: 'Norwegian Krone', flag: '🇳🇴' },
-  { code: 'DKK', name: 'Danish Krone', flag: '🇩🇰' },
-  { code: 'PLN', name: 'Polish Zloty', flag: '🇵🇱' },
-  { code: 'KRW', name: 'South Korean Won', flag: '🇰🇷' },
-  { code: 'SGD', name: 'Singapore Dollar', flag: '🇸🇬' },
-  { code: 'HKD', name: 'Hong Kong Dollar', flag: '🇭🇰' },
-  { code: 'NZD', name: 'New Zealand Dollar', flag: '🇳🇿' },
+  { code: 'USD', name: 'US Dollar', symbol: '$', color: '#22786E' },
+  { code: 'EUR', name: 'Euro', symbol: '€', color: '#2A5A96' },
+  { code: 'GBP', name: 'British Pound', symbol: '£', color: '#783C96' },
+  { code: 'JPY', name: 'Japanese Yen', symbol: '¥', color: '#BE465A' },
+  { code: 'TRY', name: 'Turkish Lira', symbol: '₺', color: '#C88228' },
+  { code: 'CHF', name: 'Swiss Franc', symbol: 'Fr', color: '#AA5A5A' },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', color: '#3C8C78' },
+  { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', color: '#5A78A0' },
+  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', color: '#C84646' },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', color: '#3C8C5A' },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', color: '#3C7850' },
+  { code: 'RUB', name: 'Russian Ruble', symbol: '₽', color: '#7A5AA0' },
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', color: '#C8783C' },
+  { code: 'BRL', name: 'Brazilian Real', symbol: 'R$', color: '#3C9650' },
+  { code: 'MXN', name: 'Mexican Peso', symbol: '$', color: '#967832' },
+  { code: 'ZAR', name: 'South African Rand', symbol: 'R', color: '#5A8C64' },
+  { code: 'SEK', name: 'Swedish Krona', symbol: 'kr', color: '#4664A0' },
+  { code: 'NOK', name: 'Norwegian Krone', symbol: 'kr', color: '#8C4664' },
+  { code: 'DKK', name: 'Danish Krone', symbol: 'kr', color: '#A05A5A' },
+  { code: 'PLN', name: 'Polish Zloty', symbol: 'zł', color: '#7A6450' },
+  { code: 'KRW', name: 'South Korean Won', symbol: '₩', color: '#5A6EBE' },
+  { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$', color: '#46828C' },
+  { code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HK$', color: '#967846' },
+  { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$', color: '#3C7896' },
 ];
 
 type Rates = Record<string, number>;
@@ -96,7 +97,8 @@ function CurrNow() {
   const [adsReady, setAdsReady] = useState(false);
 
   const [base, setBase] = useState('USD');
-  const [amount, setAmount] = useState('1');
+  const [quote, setQuote] = useState('EUR');
+  const [amount, setAmount] = useState('100');
 
   // Initialise AdMob once: gather UMP/GDPR consent, then start the SDK.
   useEffect(() => {
@@ -130,7 +132,7 @@ function CurrNow() {
       setRates(json.rates as Rates);
       setUpdatedAt(typeof json.time_last_update_utc === 'string' ? json.time_last_update_utc : '');
     } catch (e) {
-      setError('Kurlar alınamadı. İnternet bağlantını kontrol edip tekrar dene.');
+      setError('Could not load rates. Check your connection and try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -156,102 +158,172 @@ function CurrNow() {
     return updatedAt.replace(/^[A-Za-z]{3},\s*/, '').replace(/\s*\+0000$/, ' UTC');
   }, [updatedAt]);
 
-  const baseCurrency = useMemo(
-    () => CURRENCIES.find((c) => c.code === base),
-    [base]
+  const findCur = useCallback(
+    (code: string) => CURRENCIES.find((c) => c.code === code),
+    []
   );
+  const baseCur = findCur(base);
+  const quoteCur = findCur(quote);
 
+  // cross-rate base -> quote
+  const pairRate = useMemo(() => {
+    if (rates && rates[base] && rates[quote]) {
+      return rates[quote] / rates[base];
+    }
+    return 0;
+  }, [rates, base, quote]);
+
+  const convertedValue = amountNum * pairRate;
+
+  const swap = useCallback(() => {
+    setBase((prevBase) => {
+      setQuote(prevBase);
+      return quote;
+    });
+  }, [quote]);
+
+  // Quote-converted value for each list row (using current amount + base)
   const renderItem = useCallback(
     ({ item }: { item: Currency }) => {
-      let converted = 0;
+      let perUnit = 0;
       if (rates && rates[base] && rates[item.code]) {
-        converted = amountNum * (rates[item.code] / rates[base]);
+        perUnit = rates[item.code] / rates[base];
       }
-      const isBase = item.code === base;
+      const isActive = item.code === base || item.code === quote;
       return (
         <Pressable
-          onPress={() => setBase(item.code)}
+          onPress={() => setQuote(item.code)}
           style={({ pressed }) => [
-            styles.row,
-            isBase && styles.rowActive,
+            styles.rateRow,
+            isActive && styles.rateRowActive,
             pressed && styles.rowPressed,
           ]}
         >
-          <Text style={styles.flag}>{item.flag}</Text>
-          <View style={styles.rowText}>
-            <Text style={styles.code}>{item.code}</Text>
-            <Text style={styles.name} numberOfLines={1}>
+          <View style={[styles.badge, { backgroundColor: item.color }]}>
+            <Text style={styles.badgeText}>{item.symbol}</Text>
+          </View>
+          <View style={styles.rateText}>
+            <Text style={styles.rateCode}>{item.code}</Text>
+            <Text style={styles.rateName} numberOfLines={1}>
               {item.name}
             </Text>
           </View>
-          <Text style={[styles.value, isBase && styles.valueActive]}>
-            {formatNumber(converted)}
-          </Text>
+          <Text style={styles.rateValue}>{formatNumber(perUnit)}</Text>
         </Pressable>
       );
     },
-    [rates, base, amountNum]
+    [rates, base, quote]
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
-        <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#0F766E" />
-        <Text style={styles.muted}>Kurlar yükleniyor…</Text>
-      </SafeAreaView>
+      <View style={styles.loadingScreen}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color="#16A382" />
+        <Text style={styles.loadingText}>Loading rates…</Text>
+      </View>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="dark" />
-
-      <View style={styles.header}>
-        <Text style={styles.title}>CurrNow</Text>
-        {lastUpdatedLabel ? (
-          <Text style={styles.muted}>Son güncelleme: {lastUpdatedLabel}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.inputCard}>
-        <Text style={styles.baseFlag}>{baseCurrency ? baseCurrency.flag : '💱'}</Text>
-        <View style={styles.inputTextWrap}>
-          <Text style={styles.baseCode}>{base}</Text>
-          <Text style={styles.muted}>Tutarı yaz</Text>
+  const ListHeader = (
+    <View>
+      {/* Converter card block */}
+      <View style={styles.converterWrap}>
+        {/* Amount (from) */}
+        <View style={styles.amountCard}>
+          <Text style={styles.cardLabel}>Amount</Text>
+          <View style={styles.cardRow}>
+            <View style={[styles.badge, { backgroundColor: baseCur ? baseCur.color : '#22786E' }]}>
+              <Text style={styles.badgeText}>{baseCur ? baseCur.symbol : '$'}</Text>
+            </View>
+            <Text style={styles.cardCode}>{base}</Text>
+            <TextInput
+              style={styles.amountInput}
+              keyboardType="decimal-pad"
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0"
+              placeholderTextColor="#9CA3AF"
+              maxLength={12}
+              selectTextOnFocus
+            />
+          </View>
         </View>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0"
-          placeholderTextColor="#9CA3AF"
-          maxLength={12}
-          selectTextOnFocus
-        />
+
+        {/* Swap button */}
+        <View style={styles.swapWrap}>
+          <Pressable
+            onPress={swap}
+            style={({ pressed }) => [styles.swapBtn, pressed && styles.rowPressed]}
+          >
+            <Text style={styles.swapArrows}>⇵</Text>
+          </Pressable>
+        </View>
+
+        {/* Converted (to) */}
+        <View style={[styles.amountCard, styles.convertedCard]}>
+          <Text style={[styles.cardLabel, styles.convertedLabel]}>Converted to</Text>
+          <View style={styles.cardRow}>
+            <View style={[styles.badge, { backgroundColor: quoteCur ? quoteCur.color : '#2A5A96' }]}>
+              <Text style={styles.badgeText}>{quoteCur ? quoteCur.symbol : '€'}</Text>
+            </View>
+            <Text style={styles.cardCode}>{quote}</Text>
+            <Text style={styles.convertedValue}>{formatNumber(convertedValue)}</Text>
+          </View>
+        </View>
+
+        {/* Rate line */}
+        <Text style={styles.rateLine}>
+          1 {base} = {formatNumber(pairRate)} {quote}
+        </Text>
+        {lastUpdatedLabel ? (
+          <Text style={styles.updatedLine}>Last updated: {lastUpdatedLabel}</Text>
+        ) : null}
       </View>
 
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable onPress={onRefresh} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Tekrar dene</Text>
+            <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      ) : (
-        <Text style={styles.hint}>Bir para birimine dokununca taban onu yapar</Text>
-      )}
+      ) : null}
+
+      {/* Rates list header */}
+      <View style={styles.ratesHeaderRow}>
+        <Text style={styles.ratesTitle}>Exchange Rates</Text>
+        <Text style={styles.ratesBase}>Base: {base}</Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="light" />
+
+      {/* Gradient header */}
+      <LinearGradient
+        colors={['#0F5856', '#168E78']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 14 }]}
+      >
+        <Text style={styles.headerTitle}>CurrNow</Text>
+        <View style={styles.headerAccent} />
+      </LinearGradient>
 
       <FlatList
         style={styles.listFlex}
         data={CURRENCIES}
         keyExtractor={(item) => item.code}
         renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0F766E" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16A382" />
         }
       />
 
@@ -260,85 +332,154 @@ function CurrNow() {
           <BannerAd unitId={BANNER_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
+const TEAL = '#16A382';
+const INK = '#122E30';
+const GREY = '#78888A';
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  center: {
+  root: { flex: 1, backgroundColor: '#F4F8F7' },
+  loadingScreen: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    gap: 12,
+    backgroundColor: '#0F5856',
+    gap: 14,
   },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  title: { fontSize: 30, fontWeight: '800', color: '#0F172A', letterSpacing: -0.5 },
-  muted: { fontSize: 13, color: '#64748B' },
-  inputCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  loadingText: { fontSize: 15, color: '#CFEDE5' },
+
+  // Header
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  headerTitle: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerAccent: {
+    marginTop: 10,
+    width: 64,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#6CDEBC',
+  },
+
+  listFlex: { flex: 1 },
+  list: { paddingBottom: 24 },
+
+  // Converter
+  converterWrap: { paddingHorizontal: 16, paddingTop: 18 },
+  amountCard: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    gap: 12,
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8EEED',
   },
-  baseFlag: { fontSize: 32 },
-  inputTextWrap: { flex: 1 },
-  baseCode: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
-  input: {
-    minWidth: 120,
+  convertedCard: {
+    backgroundColor: '#EFFAF6',
+    borderColor: '#BEE8DA',
+  },
+  cardLabel: { fontSize: 14, color: GREY, fontWeight: '500', marginBottom: 12 },
+  convertedLabel: { color: '#46967D' },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  cardCode: { fontSize: 20, fontWeight: '700', color: INK },
+  amountInput: {
+    flex: 1,
     textAlign: 'right',
     fontSize: 26,
-    fontWeight: '700',
-    color: '#0F766E',
+    fontWeight: '800',
+    color: INK,
     padding: 0,
   },
-  hint: {
-    textAlign: 'center',
-    color: '#94A3B8',
-    fontSize: 12,
-    marginTop: 14,
-    marginBottom: 2,
+  convertedValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 26,
+    fontWeight: '800',
+    color: TEAL,
   },
-  listFlex: { flex: 1 },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
-  row: {
+
+  // Swap
+  swapWrap: { alignItems: 'center', marginVertical: -14, zIndex: 2 },
+  swapBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#6CDEBC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: '#F4F8F7',
+  },
+  swapArrows: { fontSize: 26, fontWeight: '800', color: '#0C3C37', marginTop: -2 },
+
+  rateLine: {
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: INK,
+    marginTop: 18,
+  },
+  updatedLine: { textAlign: 'center', fontSize: 12, color: GREY, marginTop: 4 },
+
+  // Rates section
+  ratesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  ratesTitle: { fontSize: 18, fontWeight: '700', color: INK },
+  ratesBase: { fontSize: 13, color: '#46967D', fontWeight: '600' },
+
+  rateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 8,
-    gap: 12,
+    borderRadius: 18,
+    gap: 14,
     borderWidth: 1,
-    borderColor: '#EEF2F6',
+    borderColor: '#ECF1F0',
   },
-  rowActive: { borderColor: '#0F766E', backgroundColor: '#F0FDFA' },
+  rateRowActive: { borderColor: '#9BDEC8', backgroundColor: '#F5FCF9' },
   rowPressed: { opacity: 0.6 },
-  flag: { fontSize: 26 },
-  rowText: { flex: 1 },
-  code: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  name: { fontSize: 12, color: '#64748B' },
-  value: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+
+  badge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+
+  rateText: { flex: 1 },
+  rateCode: { fontSize: 17, fontWeight: '700', color: INK },
+  rateName: { fontSize: 12, color: GREY, marginTop: 1 },
+  rateValue: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: INK,
     fontVariant: ['tabular-nums'],
   },
-  valueActive: { color: '#0F766E' },
+
+  // Error
   errorBox: {
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 14,
     backgroundColor: '#FEF2F2',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: '#FECACA',
@@ -347,17 +488,19 @@ const styles = StyleSheet.create({
   },
   errorText: { color: '#B91C1C', textAlign: 'center', fontSize: 14 },
   retryBtn: {
-    backgroundColor: '#0F766E',
+    backgroundColor: TEAL,
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 10,
   },
   retryText: { color: '#FFFFFF', fontWeight: '700' },
+
+  // Banner
   banner: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E8EEED',
   },
 });
