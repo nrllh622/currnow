@@ -33,7 +33,7 @@ const API_URL = 'https://open.er-api.com/v6/latest/USD';
 // Closed testing boyunca TEST reklamı gösteriyoruz. Kendi CANLI reklamına
 // tıklamak AdMob hesabını KALICI olarak bloklayabilir. Uygulama Play'de tam
 // yayına geçip gerçek gelir istediğinde, sadece şu satırı false yap:
-const USE_TEST_ADS = true;
+const USE_TEST_ADS = false;
 
 const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
 const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
