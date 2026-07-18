@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.currnow.app",
-      "versionCode": 2,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./adaptive-icon.png",
         "backgroundColor": "#12907C"
@@ -24,6 +24,15 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-2984878117732696~4079442856"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0F5856"
         }
       ]
     ],
