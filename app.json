@@ -9,7 +9,11 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.currnow.app",
-      "versionCode": 2
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./adaptive-icon.png",
+        "backgroundColor": "#12907C"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.currnow.app",
@@ -27,6 +31,12 @@
       "eas": {
         "projectId": "b6e01399-3a38-4448-8951-4e63b5f4050c"
       }
+    },
+    "icon": "./icon.png",
+    "splash": {
+      "image": "./splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F5856"
     }
   }
 }
