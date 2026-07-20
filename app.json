@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.currnow.app",
-      "versionCode": 9,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./adaptive-icon.png",
         "backgroundColor": "#12907C"
