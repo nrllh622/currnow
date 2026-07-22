@@ -23,6 +23,7 @@ import type { PriceState } from './priceStore';
 import type { PortfolioState } from './portfolioStore';
 import { valuePortfolio } from './valuation';
 import AddAssetScreen from './AddAssetScreen';
+import AssetListScreen from './AssetListScreen';
 
 // Seçilen gösterim para birimi cihazda saklanır
 const DISPLAY_KEY = '@mynestvault/display_currency';
@@ -55,6 +56,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
   const { assets } = portfolio;
 
   const [adding, setAdding] = useState(false);
+  const [viewingType, setViewingType] = useState<string | null>(null);
   const [displayCurrency, setDisplayCurrency] = useState('USD');
   const [pickingCurrency, setPickingCurrency] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
@@ -171,7 +173,11 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
               const total = valuation ? valuation.totalsByType[t.id] ?? 0 : 0;
               const count = countsByType[t.id] ?? 0;
               return (
-                <View key={t.id} style={styles.typeCard}>
+                <Pressable
+                  key={t.id}
+                  onPress={() => setViewingType(t.id)}
+                  style={({ pressed }) => [styles.typeCard, pressed && styles.addBtnPressed]}
+                >
                   <Text style={styles.typeEmoji}>{t.emoji}</Text>
                   <Text style={styles.typeLabel}>{t.labelEN}</Text>
                   <Text style={styles.typeCount}>
@@ -180,13 +186,17 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
                   <Text style={styles.typeValue}>
                     {formatNumber(total)} {displayCurrency}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
 
             {/* "Other" varlıkları: her biri kendi adıyla ayrı kart */}
             {otherItems.map((item) => (
-              <View key={item.asset.id} style={styles.typeCard}>
+              <Pressable
+                key={item.asset.id}
+                onPress={() => setViewingType('other')}
+                style={({ pressed }) => [styles.typeCard, pressed && styles.addBtnPressed]}
+              >
                 <Text style={styles.typeEmoji}>📦</Text>
                 <Text style={styles.typeLabel} numberOfLines={1}>
                   {item.asset.label ?? 'Other'}
@@ -197,7 +207,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
                     ? `${formatNumber(item.valueDisplay)} ${displayCurrency}`
                     : '—'}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         ) : (
@@ -229,6 +239,28 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
           portfolio.addAsset(asset);
           setAdding(false);
         }}
+      />
+
+      {/* Varlık listesi (tip kartına dokununca) */}
+      <AssetListScreen
+        visible={viewingType !== null}
+        title={
+          viewingType === 'other'
+            ? 'Other Assets'
+            : ASSET_TYPES.find((t) => t.id === viewingType)?.labelEN ?? ''
+        }
+        items={
+          valuation && viewingType
+            ? valuation.items.filter((i) => i.asset.typeId === viewingType)
+            : []
+        }
+        displayCurrency={displayCurrency}
+        onDelete={(id) => {
+          const remaining = viewingType ? (countsByType[viewingType] ?? 0) - 1 : 0;
+          portfolio.removeAsset(id);
+          if (remaining <= 0) setViewingType(null);
+        }}
+        onClose={() => setViewingType(null)}
       />
 
       {/* Gösterim para birimi seçici (tam ekran kaplama) */}
