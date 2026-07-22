@@ -122,8 +122,14 @@ function Root() {
 
   const onToggleLock = useCallback(async (value: boolean) => {
     if (value) {
-      const enrolled = await LocalAuthentication.isEnrolledAsync().catch(() => false);
-      if (!enrolled) {
+      // Biyometri VEYA PIN/desen — herhangi bir cihaz kilidi yeterli
+      let level = LocalAuthentication.SecurityLevel.NONE;
+      try {
+        level = await LocalAuthentication.getEnrolledLevelAsync();
+      } catch {
+        // Yerel modül yüklü değilse (eski build) NONE kalır
+      }
+      if (level === LocalAuthentication.SecurityLevel.NONE) {
         Alert.alert(
           'Device lock required',
           "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
