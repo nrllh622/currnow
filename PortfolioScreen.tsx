@@ -1,381 +1,542 @@
-// App.tsx
-// MyNestVault — Uygulama çatısı
-//
-//  - 3 sekme: Portfolio · Converter · Settings (bağımlılıksız, kendi tab bar'ımız)
-//  - usePrices() ve usePortfolio() BİR KEZ burada kurulur, ekranlara dağıtılır
-//  - AdMob banner uygulama genelinde, sekme çubuğunun üstünde
-//  - Sekmeler arası geçişte ekranlar unmount edilmez (display:none) —
-//    böylece çevirici arama/tutar durumu korunur, fiyatlar yeniden yüklenmez
+// PortfolioScreen.tsx
+// MyNestVault — Portföy ana ekranı
+// Toplam değer kartı + varlık tipi kartları + boş durum.
+// Varlık ekleme akışı bir sonraki adımda bağlanacak.
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  AppState,
-  AppStateStatus,
+  ActivityIndicator,
+  FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as LocalAuthentication from 'expo-local-authentication';
-import mobileAds, {
-  AdsConsent,
-  BannerAd,
-  BannerAdSize,
-  TestIds,
-} from 'react-native-google-mobile-ads';
+import { ASSET_TYPES } from './assetTypes';
+import { Currency, CURATED, buildCurrencyList } from './currencies';
+import type { PriceState } from './priceStore';
+import type { PortfolioState } from './portfolioStore';
+import { valuePortfolio } from './valuation';
+import AddAssetScreen from './AddAssetScreen';
+import AssetListScreen from './AssetListScreen';
 
-import ConverterScreen from './ConverterScreen';
-import PortfolioScreen from './PortfolioScreen';
-import { usePrices } from './priceStore';
-import { usePortfolio } from './portfolioStore';
+// Seçilen gösterim para birimi cihazda saklanır
+const DISPLAY_KEY = '@mynestvault/display_currency';
 
-// --- AdMob ---------------------------------------------------------------
-// Kendi CANLI reklamına tıklamak AdMob hesabını KALICI olarak bloklayabilir.
-// Geliştirme/test boyunca true kalmalı (test reklamı gösterir).
-// !!! PRODUCTION BUILD ALMADAN ÖNCE false YAP !!!
-const USE_TEST_ADS = true;
-
-const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
-const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
-// ------------------------------------------------------------------------
-
-type TabId = 'portfolio' | 'converter' | 'settings';
-
-// Uygulama kilidi tercihi cihazda saklanır
-const LOCK_KEY = '@mynestvault/app_lock';
-
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'portfolio', label: 'Portfolio', icon: '🪺' },
-  { id: 'converter', label: 'Converter', icon: '⇄' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
-];
-
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <Root />
-    </SafeAreaProvider>
-  );
+// Thousands separators without relying on Intl (Hermes-safe on Android).
+function formatNumber(value: number): string {
+  if (!isFinite(value)) return '—';
+  const decimals = value !== 0 && Math.abs(value) < 1 ? 4 : 2;
+  const fixed = value.toFixed(decimals);
+  const parts = fixed.split('.');
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.length > 1 ? intPart + '.' + parts[1] : intPart;
 }
 
-function Root() {
+function formatUpdatedAt(ts: number): string {
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+interface Props {
+  prices: PriceState;
+  portfolio: PortfolioState;
+}
+
+export default function PortfolioScreen({ prices, portfolio }: Props) {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<TabId>('portfolio');
-  const [adsReady, setAdsReady] = useState(false);
+  const { snapshot } = prices;
+  const { assets } = portfolio;
 
-  // --- Uygulama kilidi ---------------------------------------------------
-  const [lockEnabled, setLockEnabled] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const lockEnabledRef = useRef(false);
+  const [adding, setAdding] = useState(false);
+  const [viewingType, setViewingType] = useState<string | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState('USD');
+  const [pickingCurrency, setPickingCurrency] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
 
+  // Kayıtlı gösterim para birimini yükle
   useEffect(() => {
-    lockEnabledRef.current = lockEnabled;
-  }, [lockEnabled]);
-
-  // Kayıtlı tercihi yükle; kilit açıksa uygulama kilitli başlar
-  useEffect(() => {
-    AsyncStorage.getItem(LOCK_KEY)
+    AsyncStorage.getItem(DISPLAY_KEY)
       .then((saved) => {
-        if (saved === '1') {
-          setLockEnabled(true);
-          setLocked(true);
-        }
+        if (saved) setDisplayCurrency(saved);
       })
       .catch(() => {});
   }, []);
 
-  const tryUnlock = useCallback(async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock MyNestVault',
-        cancelLabel: 'Cancel',
-      });
-      if (result.success) setLocked(false);
-    } catch {
-      // Kimlik doğrulama açılamadı; kullanıcı Unlock butonuyla tekrar dener
+  const selectDisplayCurrency = (code: string) => {
+    setDisplayCurrency(code);
+    setPickingCurrency(false);
+    setCurrencySearch('');
+    AsyncStorage.setItem(DISPLAY_KEY, code).catch(() => {});
+  };
+
+  // Tam para birimi listesi (çeviricidekiyle aynı kaynak)
+  const allCurrencies: Currency[] = useMemo(() => {
+    if (snapshot) return buildCurrencyList(Object.keys(snapshot.fxRates));
+    return CURATED;
+  }, [snapshot]);
+
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toUpperCase();
+    if (!q) return allCurrencies;
+    return allCurrencies.filter(
+      (c) => c.code.includes(q) || c.name.toUpperCase().includes(q)
+    );
+  }, [allCurrencies, currencySearch]);
+
+  const valuation = useMemo(() => {
+    if (!snapshot) return null;
+    return valuePortfolio(assets, snapshot, displayCurrency);
+  }, [snapshot, assets, displayCurrency]);
+
+  // Tip bazında varlık adedi
+  const countsByType = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of assets) m[a.typeId] = (m[a.typeId] ?? 0) + 1;
+    return m;
+  }, [assets]);
+
+  // "Other" varlıkları gruplanmaz — her biri kendi adıyla ayrı kart olur
+  const otherItems = useMemo(() => {
+    if (!valuation) return [];
+    return valuation.items.filter((i) => i.asset.typeId === 'other');
+  }, [valuation]);
+
+  // Tip bazında toplam kâr/zarar (alış bilgisi girilen varlıklardan)
+  const gainsByType = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (!valuation) return m;
+    for (const item of valuation.items) {
+      if (item.gainDisplay !== null) {
+        m[item.asset.typeId] = (m[item.asset.typeId] ?? 0) + item.gainDisplay;
+      }
     }
-  }, []);
+    return m;
+  }, [valuation]);
 
-  // Kilitlenince doğrulama istemini otomatik göster
-  useEffect(() => {
-    if (locked) tryUnlock();
-  }, [locked, tryUnlock]);
-
-  // Arka plana geçince yeniden kilitle (uygulama değiştiricide de içerik gizlenir)
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'background' && lockEnabledRef.current) {
-        setLocked(true);
-      }
-    });
-    return () => sub.remove();
-  }, []);
-
-  const onToggleLock = useCallback(async (value: boolean) => {
-    if (value) {
-      const enrolled = await LocalAuthentication.isEnrolledAsync().catch(() => false);
-      if (!enrolled) {
-        Alert.alert(
-          'Device lock required',
-          "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
-        );
-        return;
-      }
-    }
-    setLockEnabled(value);
-    AsyncStorage.setItem(LOCK_KEY, value ? '1' : '0').catch(() => {});
-  }, []);
-  // -----------------------------------------------------------------------
-
-  // Merkezi depolar — tüm uygulamada tek örnek
-  const prices = usePrices();
-  const portfolio = usePortfolio();
-
-  // Initialise AdMob once: gather UMP/GDPR consent, then start the SDK.
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        await AdsConsent.gatherConsent();
-      } catch (e) {
-        // Consent could not be gathered (e.g. offline). Continue anyway.
-      }
-      try {
-        await mobileAds().initialize();
-      } catch (e) {
-        // Initialise failed; banner simply won't show.
-      }
-      if (mounted) setAdsReady(true);
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const show = (visible: boolean) =>
-    visible ? styles.screenVisible : styles.screenHidden;
+  const hasAssets = assets.length > 0;
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
-
-      {/* Ekranlar: aktif olmayanlar gizlenir ama unmount edilmez */}
-      <View style={styles.screens}>
-        <View style={show(tab === 'portfolio')}>
-          <PortfolioScreen prices={prices} portfolio={portfolio} />
-        </View>
-        <View style={show(tab === 'converter')}>
-          <ConverterScreen prices={prices} />
-        </View>
-        <View style={show(tab === 'settings')}>
-          <SettingsScreen lockEnabled={lockEnabled} onToggleLock={onToggleLock} />
-        </View>
-      </View>
-
-      {/* Uygulama geneli banner */}
-      {adsReady ? (
-        <View style={styles.banner}>
-          <BannerAd unitId={BANNER_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
-        </View>
-      ) : null}
-
-      {/* Sekme çubuğu */}
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <Pressable
-              key={t.id}
-              onPress={() => setTab(t.id)}
-              style={({ pressed }) => [styles.tabItem, pressed && styles.tabPressed]}
-            >
-              <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
-                {t.icon}
-              </Text>
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Kilit ekranı — her şeyin üstünde */}
-      {locked ? (
-        <View style={styles.lockScreen}>
-          <Text style={styles.lockEmoji}>🔒</Text>
-          <Text style={styles.lockTitle}>MyNestVault is locked</Text>
-          <Text style={styles.lockHint}>
-            Unlock with your fingerprint or screen lock.
-          </Text>
-          <Pressable
-            onPress={tryUnlock}
-            style={({ pressed }) => [styles.lockBtn, pressed && styles.tabPressed]}
-          >
-            <Text style={styles.lockBtnText}>Unlock</Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Ayarlar (v1 yer tutucu — dil seçimi ve diğerleri sonraki adımlarda)
-// ---------------------------------------------------------------------------
-
-function SettingsScreen({
-  lockEnabled,
-  onToggleLock,
-}: {
-  lockEnabled: boolean;
-  onToggleLock: (value: boolean) => void;
-}) {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={styles.settingsRoot}>
+      {/* Gradient header */}
       <LinearGradient
         colors={['#0F5856', '#168E78']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.settingsHeader, { paddingTop: insets.top + 14 }]}
+        style={[styles.header, { paddingTop: insets.top + 14 }]}
       >
-        <Text style={styles.settingsTitle}>Settings</Text>
-        <View style={styles.settingsAccent} />
+        <Text style={styles.headerTitle}>MyNestVault</Text>
+        <View style={styles.headerAccent} />
       </LinearGradient>
 
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsAppName}>MyNestVault</Text>
-        <Text style={styles.settingsInfo}>Gold & Assets Tracker</Text>
-      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Toplam değer kartı */}
+        <View style={styles.totalCard}>
+          <View style={styles.totalTopRow}>
+            <Text style={styles.totalLabel}>Total Value</Text>
+            <Pressable
+              onPress={() => setPickingCurrency(true)}
+              style={styles.currencyChip}
+              hitSlop={8}
+            >
+              <Text style={styles.currencyChipText}>{displayCurrency} ▾</Text>
+            </Pressable>
+          </View>
 
-      <View style={styles.settingsCard}>
-        <View style={styles.settingsRow}>
-          <View style={styles.settingsRowText}>
-            <Text style={styles.settingsPrivacyTitle}>🔐 App Lock</Text>
-            <Text style={styles.settingsInfo}>
-              Require your phone's fingerprint or screen lock to open the app.
+          {!snapshot ? (
+            <View style={styles.totalLoading}>
+              <ActivityIndicator size="small" color="#16A382" />
+            </View>
+          ) : (
+            <Text style={styles.totalValue}>
+              {formatNumber(valuation ? valuation.totalDisplay : 0)}{' '}
+              <Text style={styles.totalCurrency}>{displayCurrency}</Text>
+            </Text>
+          )}
+
+          {snapshot ? (
+            <Text style={styles.updatedLine}>
+              Updated {formatUpdatedAt(snapshot.updatedAt)}
+              {valuation && valuation.unpricedCount > 0
+                ? ` · ${valuation.unpricedCount} item(s) not priced yet`
+                : ''}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Varlık tipi kartları / boş durum */}
+        {hasAssets ? (
+          <View style={styles.typeGrid}>
+            {/* Gruplu tip kartları (Other hariç) */}
+            {ASSET_TYPES.filter(
+              (t) => t.id !== 'other' && (countsByType[t.id] ?? 0) > 0
+            ).map((t) => {
+              const total = valuation ? valuation.totalsByType[t.id] ?? 0 : 0;
+              const count = countsByType[t.id] ?? 0;
+              const gain = t.id in gainsByType ? gainsByType[t.id] : null;
+              return (
+                <Pressable
+                  key={t.id}
+                  onPress={() => setViewingType(t.id)}
+                  style={({ pressed }) => [styles.typeCard, pressed && styles.addBtnPressed]}
+                >
+                  <Text style={styles.typeEmoji}>{t.emoji}</Text>
+                  <Text style={styles.typeLabel}>{t.labelEN}</Text>
+                  <Text style={styles.typeCount}>
+                    {count} item{count > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.typeValue}>
+                    {formatNumber(total)} {displayCurrency}
+                  </Text>
+                  {gain !== null ? (
+                    <Text
+                      style={[styles.typeGain, gain >= 0 ? styles.gainUp : styles.gainDown]}
+                    >
+                      {gain >= 0 ? '▲' : '▼'} {formatNumber(Math.abs(gain))}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+
+            {/* "Other" varlıkları: her biri kendi adıyla ayrı kart */}
+            {otherItems.map((item) => (
+              <Pressable
+                key={item.asset.id}
+                onPress={() => setViewingType('other')}
+                style={({ pressed }) => [styles.typeCard, pressed && styles.addBtnPressed]}
+              >
+                <Text style={styles.typeEmoji}>📦</Text>
+                <Text style={styles.typeLabel} numberOfLines={1}>
+                  {item.asset.label ?? 'Other'}
+                </Text>
+                <Text style={styles.typeCount}>Other</Text>
+                <Text style={styles.typeValue}>
+                  {item.valueDisplay !== null
+                    ? `${formatNumber(item.valueDisplay)} ${displayCurrency}`
+                    : '—'}
+                </Text>
+                {item.gainDisplay !== null ? (
+                  <Text
+                    style={[
+                      styles.typeGain,
+                      item.gainDisplay >= 0 ? styles.gainUp : styles.gainDown,
+                    ]}
+                  >
+                    {item.gainDisplay >= 0 ? '▲' : '▼'}{' '}
+                    {formatNumber(Math.abs(item.gainDisplay))}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyEmoji}>🪺</Text>
+            <Text style={styles.emptyTitle}>Your vault is empty</Text>
+            <Text style={styles.emptyText}>
+              Add your cash, gold, silver, crypto and other valuables to see
+              their live total value — all stored only on this device.
             </Text>
           </View>
-          <Switch
-            value={lockEnabled}
-            onValueChange={onToggleLock}
-            trackColor={{ true: '#6CDEBC', false: '#D6DEDD' }}
-            thumbColor={lockEnabled ? '#16A382' : '#FFFFFF'}
+        )}
+      </ScrollView>
+
+      {/* Varlık ekle butonu */}
+      <Pressable
+        onPress={() => setAdding(true)}
+        style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+      >
+        <Text style={styles.addBtnText}>＋ Add Asset</Text>
+      </Pressable>
+
+      {/* Varlık ekleme akışı (tam ekran kaplama) */}
+      <AddAssetScreen
+        visible={adding}
+        prices={prices}
+        onClose={() => setAdding(false)}
+        onSave={(asset) => {
+          portfolio.addAsset(asset);
+          setAdding(false);
+        }}
+      />
+
+      {/* Varlık listesi (tip kartına dokununca) */}
+      <AssetListScreen
+        visible={viewingType !== null}
+        title={
+          viewingType === 'other'
+            ? 'Other Assets'
+            : ASSET_TYPES.find((t) => t.id === viewingType)?.labelEN ?? ''
+        }
+        items={
+          valuation && viewingType
+            ? valuation.items.filter((i) => i.asset.typeId === viewingType)
+            : []
+        }
+        displayCurrency={displayCurrency}
+        onDelete={(id) => {
+          const remaining = viewingType ? (countsByType[viewingType] ?? 0) - 1 : 0;
+          portfolio.removeAsset(id);
+          if (remaining <= 0) setViewingType(null);
+        }}
+        onClose={() => setViewingType(null)}
+      />
+
+      {/* Gösterim para birimi seçici (tam ekran kaplama) */}
+      {pickingCurrency ? (
+        <View style={[styles.pickerOverlay, { paddingTop: insets.top }]}>
+          <View style={styles.pickerTopBar}>
+            <Pressable
+              onPress={() => {
+                setPickingCurrency(false);
+                setCurrencySearch('');
+              }}
+              hitSlop={10}
+            >
+              <Text style={styles.pickerAction}>‹ Back</Text>
+            </Pressable>
+            <Text style={styles.pickerTitle}>Show total in</Text>
+            <View style={styles.pickerSpacer} />
+          </View>
+          <View style={styles.pickerSearchWrap}>
+            <Text style={styles.pickerSearchIcon}>⌕</Text>
+            <TextInput
+              style={styles.pickerSearchInput}
+              value={currencySearch}
+              onChangeText={setCurrencySearch}
+              placeholder="Search currency (e.g. EUR, Yen)"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          </View>
+          <FlatList
+            data={filteredCurrencies}
+            keyExtractor={(item) => item.code}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const active = item.code === displayCurrency;
+              return (
+                <Pressable
+                  onPress={() => selectDisplayCurrency(item.code)}
+                  style={({ pressed }) => [
+                    styles.pickerRow,
+                    active && styles.pickerRowActive,
+                    pressed && styles.addBtnPressed,
+                  ]}
+                >
+                  <View style={[styles.pickerBadge, { backgroundColor: item.color }]}>
+                    <Text style={styles.pickerBadgeText}>{item.symbol}</Text>
+                  </View>
+                  <View style={styles.pickerText}>
+                    <Text style={styles.pickerCode}>{item.code}</Text>
+                    <Text style={styles.pickerName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </View>
+                  {active ? <Text style={styles.pickerCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            }}
           />
         </View>
-      </View>
-
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsPrivacyTitle}>🔒 Private by design</Text>
-        <Text style={styles.settingsInfo}>
-          All your assets are stored only on this device. Nothing is uploaded
-          anywhere.
-        </Text>
-      </View>
+      ) : null}
     </View>
   );
 }
 
+const TEAL = '#16A382';
+const INK = '#122E30';
+const GREY = '#78888A';
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F4F8F7' },
-  screens: { flex: 1 },
-  screenVisible: { flex: 1, display: 'flex' },
-  screenHidden: { flex: 1, display: 'none' },
 
-  // Banner
-  banner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E8EEED',
-  },
-
-  // Tab bar
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E8EEED',
-    paddingTop: 8,
-  },
-  tabItem: { flex: 1, alignItems: 'center', gap: 2 },
-  tabPressed: { opacity: 0.6 },
-  tabIcon: { fontSize: 20, color: '#9AA8A7' },
-  tabIconActive: { color: '#16A382' },
-  tabLabel: { fontSize: 11, fontWeight: '600', color: '#9AA8A7' },
-  tabLabelActive: { color: '#0F5856', fontWeight: '800' },
-
-  // Settings
-  settingsRoot: { flex: 1, backgroundColor: '#F4F8F7' },
-  settingsHeader: {
+  // Header
+  header: {
     paddingHorizontal: 24,
     paddingBottom: 22,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
-  settingsTitle: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  settingsAccent: {
+  headerTitle: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerAccent: {
     marginTop: 10,
     width: 64,
     height: 5,
     borderRadius: 3,
     backgroundColor: '#6CDEBC',
   },
-  settingsCard: {
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 90 },
+
+  // Toplam kart
+  totalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    marginHorizontal: 16,
+    marginTop: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: '#E8EEED',
+  },
+  totalTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  totalLabel: { fontSize: 14, color: GREY, fontWeight: '500' },
+  currencyChip: {
+    backgroundColor: '#EFFAF6',
+    borderWidth: 1,
+    borderColor: '#BEE8DA',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  currencyChipText: { fontSize: 13, fontWeight: '700', color: '#0F5856' },
+  totalLoading: { paddingVertical: 16, alignItems: 'flex-start' },
+  totalValue: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: INK,
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
+  },
+  totalCurrency: { fontSize: 18, fontWeight: '700', color: GREY },
+  updatedLine: { fontSize: 12, color: GREY, marginTop: 6 },
+
+  // Tip kartları
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 10,
+    marginTop: 14,
+  },
+  typeCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#ECF1F0',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 18,
+    width: '46%',
+    marginHorizontal: '2%',
+    marginBottom: 12,
+    padding: 16,
   },
-  settingsAppName: { fontSize: 18, fontWeight: '800', color: '#122E30' },
-  settingsPrivacyTitle: { fontSize: 15, fontWeight: '800', color: '#122E30', marginBottom: 6 },
-  settingsInfo: { fontSize: 13, color: '#78888A', marginTop: 2, lineHeight: 19 },
-  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingsRowText: { flex: 1 },
-
-  // Kilit ekranı
-  lockScreen: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0F5856',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    zIndex: 100,
-  },
-  lockEmoji: { fontSize: 56 },
-  lockTitle: {
-    fontSize: 22,
+  typeEmoji: { fontSize: 26 },
+  typeLabel: { fontSize: 15, fontWeight: '700', color: INK, marginTop: 8 },
+  typeCount: { fontSize: 12, color: GREY, marginTop: 1 },
+  typeValue: {
+    fontSize: 16,
     fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  lockHint: {
-    fontSize: 14,
-    color: '#CFEDE5',
+    color: INK,
     marginTop: 8,
-    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
-  lockBtn: {
-    marginTop: 28,
-    backgroundColor: '#6CDEBC',
+  typeGain: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+  gainUp: { color: '#0E9F6E' },
+  gainDown: { color: '#DC2626' },
+
+  // Boş durum
+  emptyBox: {
+    alignItems: 'center',
+    paddingHorizontal: 36,
+    paddingTop: 46,
+  },
+  emptyEmoji: { fontSize: 52 },
+  emptyTitle: { fontSize: 19, fontWeight: '800', color: INK, marginTop: 14 },
+  emptyText: {
+    fontSize: 14,
+    color: GREY,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 21,
+  },
+
+  // Ekle butonu
+  addBtn: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 16,
+    backgroundColor: TEAL,
     borderRadius: 18,
-    paddingHorizontal: 40,
+    paddingVertical: 15,
+    alignItems: 'center',
+    elevation: 4,
+  },
+  addBtnPressed: { opacity: 0.85 },
+  addBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+
+  // Gösterim para birimi seçici
+  pickerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F4F8F7',
+    zIndex: 20,
+  },
+  pickerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  lockBtnText: { color: '#0C3C37', fontSize: 16, fontWeight: '800' },
+  pickerAction: { fontSize: 15, fontWeight: '700', color: TEAL },
+  pickerTitle: { fontSize: 17, fontWeight: '800', color: INK },
+  pickerSpacer: { width: 60 },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8EEED',
+    gap: 10,
+  },
+  pickerSearchIcon: { fontSize: 22, color: GREY, marginTop: -2 },
+  pickerSearchInput: { flex: 1, fontSize: 15, color: INK, padding: 0 },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#ECF1F0',
+  },
+  pickerRowActive: { borderColor: '#9BDEC8', backgroundColor: '#F5FCF9' },
+  pickerBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  pickerText: { flex: 1 },
+  pickerCode: { fontSize: 16, fontWeight: '700', color: INK },
+  pickerName: { fontSize: 12, color: GREY, marginTop: 1 },
+  pickerCheck: { fontSize: 18, fontWeight: '800', color: TEAL },
 });
