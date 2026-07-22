@@ -101,6 +101,12 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
     return m;
   }, [assets]);
 
+  // "Other" varlıkları gruplanmaz — her biri kendi adıyla ayrı kart olur
+  const otherItems = useMemo(() => {
+    if (!valuation) return [];
+    return valuation.items.filter((i) => i.asset.typeId === 'other');
+  }, [valuation]);
+
   const hasAssets = assets.length > 0;
 
   return (
@@ -158,7 +164,10 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         {/* Varlık tipi kartları / boş durum */}
         {hasAssets ? (
           <View style={styles.typeGrid}>
-            {ASSET_TYPES.filter((t) => (countsByType[t.id] ?? 0) > 0).map((t) => {
+            {/* Gruplu tip kartları (Other hariç) */}
+            {ASSET_TYPES.filter(
+              (t) => t.id !== 'other' && (countsByType[t.id] ?? 0) > 0
+            ).map((t) => {
               const total = valuation ? valuation.totalsByType[t.id] ?? 0 : 0;
               const count = countsByType[t.id] ?? 0;
               return (
@@ -174,6 +183,22 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
                 </View>
               );
             })}
+
+            {/* "Other" varlıkları: her biri kendi adıyla ayrı kart */}
+            {otherItems.map((item) => (
+              <View key={item.asset.id} style={styles.typeCard}>
+                <Text style={styles.typeEmoji}>📦</Text>
+                <Text style={styles.typeLabel} numberOfLines={1}>
+                  {item.asset.label ?? 'Other'}
+                </Text>
+                <Text style={styles.typeCount}>Other</Text>
+                <Text style={styles.typeValue}>
+                  {item.valueDisplay !== null
+                    ? `${formatNumber(item.valueDisplay)} ${displayCurrency}`
+                    : '—'}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : (
           <View style={styles.emptyBox}>
