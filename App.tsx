@@ -7,14 +7,25 @@
 //  - Sekmeler arası geçişte ekranlar unmount edilmez (display:none) —
 //    böylece çevirici arama/tutar durumu korunur, fiyatlar yeniden yüklenmez
 
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  AppState,
+  AppStateStatus,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as LocalAuthentication from 'expo-local-authentication';
 import mobileAds, {
   AdsConsent,
   BannerAd,
@@ -39,6 +50,9 @@ const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
 
 type TabId = 'portfolio' | 'converter' | 'settings';
 
+// Uygulama kilidi tercihi cihazda saklanır
+const LOCK_KEY = '@mynestvault/app_lock';
+
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'portfolio', label: 'Portfolio', icon: '🪺' },
   { id: 'converter', label: 'Converter', icon: '⇄' },
@@ -57,6 +71,70 @@ function Root() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<TabId>('portfolio');
   const [adsReady, setAdsReady] = useState(false);
+
+  // --- Uygulama kilidi ---------------------------------------------------
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const lockEnabledRef = useRef(false);
+
+  useEffect(() => {
+    lockEnabledRef.current = lockEnabled;
+  }, [lockEnabled]);
+
+  // Kayıtlı tercihi yükle; kilit açıksa uygulama kilitli başlar
+  useEffect(() => {
+    AsyncStorage.getItem(LOCK_KEY)
+      .then((saved) => {
+        if (saved === '1') {
+          setLockEnabled(true);
+          setLocked(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const tryUnlock = useCallback(async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock MyNestVault',
+        cancelLabel: 'Cancel',
+      });
+      if (result.success) setLocked(false);
+    } catch {
+      // Kimlik doğrulama açılamadı; kullanıcı Unlock butonuyla tekrar dener
+    }
+  }, []);
+
+  // Kilitlenince doğrulama istemini otomatik göster
+  useEffect(() => {
+    if (locked) tryUnlock();
+  }, [locked, tryUnlock]);
+
+  // Arka plana geçince yeniden kilitle (uygulama değiştiricide de içerik gizlenir)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'background' && lockEnabledRef.current) {
+        setLocked(true);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const onToggleLock = useCallback(async (value: boolean) => {
+    if (value) {
+      const enrolled = await LocalAuthentication.isEnrolledAsync().catch(() => false);
+      if (!enrolled) {
+        Alert.alert(
+          'Device lock required',
+          "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
+        );
+        return;
+      }
+    }
+    setLockEnabled(value);
+    AsyncStorage.setItem(LOCK_KEY, value ? '1' : '0').catch(() => {});
+  }, []);
+  // -----------------------------------------------------------------------
 
   // Merkezi depolar — tüm uygulamada tek örnek
   const prices = usePrices();
@@ -99,7 +177,7 @@ function Root() {
           <ConverterScreen prices={prices} />
         </View>
         <View style={show(tab === 'settings')}>
-          <SettingsScreen />
+          <SettingsScreen lockEnabled={lockEnabled} onToggleLock={onToggleLock} />
         </View>
       </View>
 
@@ -130,6 +208,23 @@ function Root() {
           );
         })}
       </View>
+
+      {/* Kilit ekranı — her şeyin üstünde */}
+      {locked ? (
+        <View style={styles.lockScreen}>
+          <Text style={styles.lockEmoji}>🔒</Text>
+          <Text style={styles.lockTitle}>MyNestVault is locked</Text>
+          <Text style={styles.lockHint}>
+            Unlock with your fingerprint or screen lock.
+          </Text>
+          <Pressable
+            onPress={tryUnlock}
+            style={({ pressed }) => [styles.lockBtn, pressed && styles.tabPressed]}
+          >
+            <Text style={styles.lockBtnText}>Unlock</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -138,7 +233,13 @@ function Root() {
 // Ayarlar (v1 yer tutucu — dil seçimi ve diğerleri sonraki adımlarda)
 // ---------------------------------------------------------------------------
 
-function SettingsScreen() {
+function SettingsScreen({
+  lockEnabled,
+  onToggleLock,
+}: {
+  lockEnabled: boolean;
+  onToggleLock: (value: boolean) => void;
+}) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.settingsRoot}>
@@ -155,6 +256,23 @@ function SettingsScreen() {
       <View style={styles.settingsCard}>
         <Text style={styles.settingsAppName}>MyNestVault</Text>
         <Text style={styles.settingsInfo}>Gold & Assets Tracker</Text>
+      </View>
+
+      <View style={styles.settingsCard}>
+        <View style={styles.settingsRow}>
+          <View style={styles.settingsRowText}>
+            <Text style={styles.settingsPrivacyTitle}>🔐 App Lock</Text>
+            <Text style={styles.settingsInfo}>
+              Require your phone's fingerprint or screen lock to open the app.
+            </Text>
+          </View>
+          <Switch
+            value={lockEnabled}
+            onValueChange={onToggleLock}
+            trackColor={{ true: '#6CDEBC', false: '#D6DEDD' }}
+            thumbColor={lockEnabled ? '#16A382' : '#FFFFFF'}
+          />
+        </View>
       </View>
 
       <View style={styles.settingsCard}>
@@ -226,4 +344,38 @@ const styles = StyleSheet.create({
   settingsAppName: { fontSize: 18, fontWeight: '800', color: '#122E30' },
   settingsPrivacyTitle: { fontSize: 15, fontWeight: '800', color: '#122E30', marginBottom: 6 },
   settingsInfo: { fontSize: 13, color: '#78888A', marginTop: 2, lineHeight: 19 },
+  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingsRowText: { flex: 1 },
+
+  // Kilit ekranı
+  lockScreen: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0F5856',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    zIndex: 100,
+  },
+  lockEmoji: { fontSize: 56 },
+  lockTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  lockHint: {
+    fontSize: 14,
+    color: '#CFEDE5',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  lockBtn: {
+    marginTop: 28,
+    backgroundColor: '#6CDEBC',
+    borderRadius: 18,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+  },
+  lockBtnText: { color: '#0C3C37', fontSize: 16, fontWeight: '800' },
 });
