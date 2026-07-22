@@ -26,6 +26,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as ScreenCapture from 'expo-screen-capture';
 import mobileAds, {
   AdsConsent,
   BannerAd,
@@ -76,10 +77,16 @@ function Root() {
   const [lockEnabled, setLockEnabled] = useState(false);
   const [locked, setLocked] = useState(false);
   const lockEnabledRef = useRef(false);
+  const lockedRef = useRef(false);
+  const authBusyRef = useRef(false);
 
   useEffect(() => {
     lockEnabledRef.current = lockEnabled;
   }, [lockEnabled]);
+
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
 
   // Kayıtlı tercihi yükle; kilit açıksa uygulama kilitli başlar
   useEffect(() => {
@@ -93,53 +100,86 @@ function Root() {
       .catch(() => {});
   }, []);
 
-  const tryUnlock = useCallback(async () => {
+  // Kilit açıkken ekran görüntüsü ve "son uygulamalar" önizlemesi engellenir
+  useEffect(() => {
+    if (lockEnabled) {
+      ScreenCapture.preventScreenCaptureAsync().catch(() => {});
+    } else {
+      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+    }
+  }, [lockEnabled]);
+
+  // Tek doğrulama kapısı: çakışmayı önler, takılı oturumu temizler
+  const doAuthenticate = useCallback(async (message: string): Promise<boolean> => {
+    if (authBusyRef.current) return false;
+    authBusyRef.current = true;
     try {
+      try {
+        await LocalAuthentication.cancelAuthenticate();
+      } catch {
+        // Android dışı veya temizlenecek oturum yoksa sorun değil
+      }
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock MyNestVault',
+        promptMessage: message,
         cancelLabel: 'Cancel',
       });
-      if (result.success) setLocked(false);
+      return result.success;
     } catch {
-      // Kimlik doğrulama açılamadı; kullanıcı Unlock butonuyla tekrar dener
+      return false;
+    } finally {
+      authBusyRef.current = false;
     }
   }, []);
 
-  // Kilitlenince doğrulama istemini otomatik göster
+  const tryUnlock = useCallback(async () => {
+    const ok = await doAuthenticate('Unlock MyNestVault');
+    if (ok) setLocked(false);
+  }, [doAuthenticate]);
+
+  // Kilitlenince doğrulamayı otomatik başlat — YALNIZCA uygulama öndeyken
   useEffect(() => {
-    if (locked) tryUnlock();
+    if (locked && AppState.currentState === 'active') tryUnlock();
   }, [locked, tryUnlock]);
 
-  // Arka plana geçince yeniden kilitle (uygulama değiştiricide de içerik gizlenir)
+  // Arka plana geçince kilitle; öne dönünce doğrulamayı başlat
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'background' && lockEnabledRef.current) {
         setLocked(true);
       }
+      if (state === 'active' && lockedRef.current) {
+        tryUnlock();
+      }
     });
     return () => sub.remove();
-  }, []);
+  }, [tryUnlock]);
 
-  const onToggleLock = useCallback(async (value: boolean) => {
-    if (value) {
-      // Biyometri VEYA PIN/desen — herhangi bir cihaz kilidi yeterli
-      let level = LocalAuthentication.SecurityLevel.NONE;
-      try {
-        level = await LocalAuthentication.getEnrolledLevelAsync();
-      } catch {
-        // Yerel modül yüklü değilse (eski build) NONE kalır
+  const onToggleLock = useCallback(
+    async (value: boolean) => {
+      if (value) {
+        // Biyometri VEYA PIN/desen — herhangi bir cihaz kilidi yeterli
+        let level = LocalAuthentication.SecurityLevel.NONE;
+        try {
+          level = await LocalAuthentication.getEnrolledLevelAsync();
+        } catch {
+          // Yerel modül yüklü değilse (eski build) NONE kalır
+        }
+        if (level === LocalAuthentication.SecurityLevel.NONE) {
+          Alert.alert(
+            'Device lock required',
+            "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
+          );
+          return;
+        }
+        // Etkinleştirmeden önce kimliği bir kez doğrula
+        const ok = await doAuthenticate('Confirm to enable App Lock');
+        if (!ok) return;
       }
-      if (level === LocalAuthentication.SecurityLevel.NONE) {
-        Alert.alert(
-          'Device lock required',
-          "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
-        );
-        return;
-      }
-    }
-    setLockEnabled(value);
-    AsyncStorage.setItem(LOCK_KEY, value ? '1' : '0').catch(() => {});
-  }, []);
+      setLockEnabled(value);
+      AsyncStorage.setItem(LOCK_KEY, value ? '1' : '0').catch(() => {});
+    },
+    [doAuthenticate]
+  );
   // -----------------------------------------------------------------------
 
   // Merkezi depolar — tüm uygulamada tek örnek
