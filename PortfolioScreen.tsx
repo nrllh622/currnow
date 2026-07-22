@@ -6,7 +6,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import { ASSET_TYPES } from './assetTypes';
 import type { PriceState } from './priceStore';
 import type { PortfolioState } from './portfolioStore';
 import { valuePortfolio } from './valuation';
+import AddAssetScreen from './AddAssetScreen';
 
 // Toplam kartındaki para birimi — dokununca sıradakine geçer
 const DISPLAY_CURRENCIES = ['USD', 'EUR', 'TRY'];
@@ -50,6 +50,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
   const { snapshot } = prices;
   const { assets } = portfolio;
 
+  const [adding, setAdding] = useState(false);
   const [displayIdx, setDisplayIdx] = useState(0);
   const displayCurrency = DISPLAY_CURRENCIES[displayIdx];
 
@@ -67,10 +68,6 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
     for (const a of assets) m[a.typeId] = (m[a.typeId] ?? 0) + 1;
     return m;
   }, [assets]);
-
-  const onAddPress = () => {
-    Alert.alert('Add Asset', 'Asset entry is coming in the next step.');
-  };
 
   const hasAssets = assets.length > 0;
 
@@ -156,11 +153,22 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
 
       {/* Varlık ekle butonu */}
       <Pressable
-        onPress={onAddPress}
+        onPress={() => setAdding(true)}
         style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
       >
         <Text style={styles.addBtnText}>＋ Add Asset</Text>
       </Pressable>
+
+      {/* Varlık ekleme akışı (tam ekran kaplama) */}
+      <AddAssetScreen
+        visible={adding}
+        prices={prices}
+        onClose={() => setAdding(false)}
+        onSave={(asset) => {
+          portfolio.addAsset(asset);
+          setAdding(false);
+        }}
+      />
     </View>
   );
 }
