@@ -2350,6 +2350,13 @@ expo-linear-gradient@~15.0.8:
   resolved "https://registry.yarnpkg.com/expo-linear-gradient/-/expo-linear-gradient-15.0.8.tgz#17cb49522699d2a033eae93146bc820ef180f4f8"
   integrity sha512-V2d8Wjn0VzhPHO+rrSBtcl+Fo+jUUccdlmQ6OoL9/XQB7Qk3d9lYrqKDJyccwDxmQT10JdST3Tmf2K52NLc3kw==
 
+expo-local-authentication@~17.0.8:
+  version "17.0.8"
+  resolved "https://registry.yarnpkg.com/expo-local-authentication/-/expo-local-authentication-17.0.8.tgz#ca1ffee71566a02995f4a10d2181803724619db7"
+  integrity sha512-Q5fXHhu6w3pVPlFCibU72SYIAN+9wX7QpFn9h49IUqs0Equ44QgswtGrxeh7fdnDqJrrYGPet5iBzjnE70uolA==
+  dependencies:
+    invariant "^2.2.4"
+
 expo-manifests@~1.0.11:
   version "1.0.11"
   resolved "https://registry.yarnpkg.com/expo-manifests/-/expo-manifests-1.0.11.tgz#ffb21e433526a4daa7b3709b852df436e8fe46d1"
