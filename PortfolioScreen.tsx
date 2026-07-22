@@ -3,25 +3,29 @@
 // Toplam değer kartı + varlık tipi kartları + boş durum.
 // Varlık ekleme akışı bir sonraki adımda bağlanacak.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ASSET_TYPES } from './assetTypes';
+import { Currency, CURATED, buildCurrencyList } from './currencies';
 import type { PriceState } from './priceStore';
 import type { PortfolioState } from './portfolioStore';
 import { valuePortfolio } from './valuation';
 import AddAssetScreen from './AddAssetScreen';
 
-// Toplam kartındaki para birimi — dokununca sıradakine geçer
-const DISPLAY_CURRENCIES = ['USD', 'EUR', 'TRY'];
+// Seçilen gösterim para birimi cihazda saklanır
+const DISPLAY_KEY = '@mynestvault/display_currency';
 
 // Thousands separators without relying on Intl (Hermes-safe on Android).
 function formatNumber(value: number): string {
@@ -51,11 +55,39 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
   const { assets } = portfolio;
 
   const [adding, setAdding] = useState(false);
-  const [displayIdx, setDisplayIdx] = useState(0);
-  const displayCurrency = DISPLAY_CURRENCIES[displayIdx];
+  const [displayCurrency, setDisplayCurrency] = useState('USD');
+  const [pickingCurrency, setPickingCurrency] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
 
-  const cycleCurrency = () =>
-    setDisplayIdx((i) => (i + 1) % DISPLAY_CURRENCIES.length);
+  // Kayıtlı gösterim para birimini yükle
+  useEffect(() => {
+    AsyncStorage.getItem(DISPLAY_KEY)
+      .then((saved) => {
+        if (saved) setDisplayCurrency(saved);
+      })
+      .catch(() => {});
+  }, []);
+
+  const selectDisplayCurrency = (code: string) => {
+    setDisplayCurrency(code);
+    setPickingCurrency(false);
+    setCurrencySearch('');
+    AsyncStorage.setItem(DISPLAY_KEY, code).catch(() => {});
+  };
+
+  // Tam para birimi listesi (çeviricidekiyle aynı kaynak)
+  const allCurrencies: Currency[] = useMemo(() => {
+    if (snapshot) return buildCurrencyList(Object.keys(snapshot.fxRates));
+    return CURATED;
+  }, [snapshot]);
+
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toUpperCase();
+    if (!q) return allCurrencies;
+    return allCurrencies.filter(
+      (c) => c.code.includes(q) || c.name.toUpperCase().includes(q)
+    );
+  }, [allCurrencies, currencySearch]);
 
   const valuation = useMemo(() => {
     if (!snapshot) return null;
@@ -93,7 +125,11 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         <View style={styles.totalCard}>
           <View style={styles.totalTopRow}>
             <Text style={styles.totalLabel}>Total Value</Text>
-            <Pressable onPress={cycleCurrency} style={styles.currencyChip} hitSlop={8}>
+            <Pressable
+              onPress={() => setPickingCurrency(true)}
+              style={styles.currencyChip}
+              hitSlop={8}
+            >
               <Text style={styles.currencyChipText}>{displayCurrency} ▾</Text>
             </Pressable>
           </View>
@@ -169,6 +205,66 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
           setAdding(false);
         }}
       />
+
+      {/* Gösterim para birimi seçici (tam ekran kaplama) */}
+      {pickingCurrency ? (
+        <View style={[styles.pickerOverlay, { paddingTop: insets.top }]}>
+          <View style={styles.pickerTopBar}>
+            <Pressable
+              onPress={() => {
+                setPickingCurrency(false);
+                setCurrencySearch('');
+              }}
+              hitSlop={10}
+            >
+              <Text style={styles.pickerAction}>‹ Back</Text>
+            </Pressable>
+            <Text style={styles.pickerTitle}>Show total in</Text>
+            <View style={styles.pickerSpacer} />
+          </View>
+          <View style={styles.pickerSearchWrap}>
+            <Text style={styles.pickerSearchIcon}>⌕</Text>
+            <TextInput
+              style={styles.pickerSearchInput}
+              value={currencySearch}
+              onChangeText={setCurrencySearch}
+              placeholder="Search currency (e.g. EUR, Yen)"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          </View>
+          <FlatList
+            data={filteredCurrencies}
+            keyExtractor={(item) => item.code}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const active = item.code === displayCurrency;
+              return (
+                <Pressable
+                  onPress={() => selectDisplayCurrency(item.code)}
+                  style={({ pressed }) => [
+                    styles.pickerRow,
+                    active && styles.pickerRowActive,
+                    pressed && styles.addBtnPressed,
+                  ]}
+                >
+                  <View style={[styles.pickerBadge, { backgroundColor: item.color }]}>
+                    <Text style={styles.pickerBadgeText}>{item.symbol}</Text>
+                  </View>
+                  <View style={styles.pickerText}>
+                    <Text style={styles.pickerCode}>{item.code}</Text>
+                    <Text style={styles.pickerName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </View>
+                  {active ? <Text style={styles.pickerCheck}>✓</Text> : null}
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -294,4 +390,62 @@ const styles = StyleSheet.create({
   },
   addBtnPressed: { opacity: 0.85 },
   addBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+
+  // Gösterim para birimi seçici
+  pickerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F4F8F7',
+    zIndex: 20,
+  },
+  pickerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  pickerAction: { fontSize: 15, fontWeight: '700', color: TEAL },
+  pickerTitle: { fontSize: 17, fontWeight: '800', color: INK },
+  pickerSpacer: { width: 60 },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8EEED',
+    gap: 10,
+  },
+  pickerSearchIcon: { fontSize: 22, color: GREY, marginTop: -2 },
+  pickerSearchInput: { flex: 1, fontSize: 15, color: INK, padding: 0 },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#ECF1F0',
+  },
+  pickerRowActive: { borderColor: '#9BDEC8', backgroundColor: '#F5FCF9' },
+  pickerBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  pickerText: { flex: 1 },
+  pickerCode: { fontSize: 16, fontWeight: '700', color: INK },
+  pickerName: { fontSize: 12, color: GREY, marginTop: 1 },
+  pickerCheck: { fontSize: 18, fontWeight: '800', color: TEAL },
 });
