@@ -109,6 +109,18 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
     return valuation.items.filter((i) => i.asset.typeId === 'other');
   }, [valuation]);
 
+  // Tip bazında toplam kâr/zarar (alış bilgisi girilen varlıklardan)
+  const gainsByType = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (!valuation) return m;
+    for (const item of valuation.items) {
+      if (item.gainDisplay !== null) {
+        m[item.asset.typeId] = (m[item.asset.typeId] ?? 0) + item.gainDisplay;
+      }
+    }
+    return m;
+  }, [valuation]);
+
   const hasAssets = assets.length > 0;
 
   return (
@@ -172,6 +184,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
             ).map((t) => {
               const total = valuation ? valuation.totalsByType[t.id] ?? 0 : 0;
               const count = countsByType[t.id] ?? 0;
+              const gain = t.id in gainsByType ? gainsByType[t.id] : null;
               return (
                 <Pressable
                   key={t.id}
@@ -186,6 +199,13 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
                   <Text style={styles.typeValue}>
                     {formatNumber(total)} {displayCurrency}
                   </Text>
+                  {gain !== null ? (
+                    <Text
+                      style={[styles.typeGain, gain >= 0 ? styles.gainUp : styles.gainDown]}
+                    >
+                      {gain >= 0 ? '▲' : '▼'} {formatNumber(Math.abs(gain))}
+                    </Text>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -207,6 +227,17 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
                     ? `${formatNumber(item.valueDisplay)} ${displayCurrency}`
                     : '—'}
                 </Text>
+                {item.gainDisplay !== null ? (
+                  <Text
+                    style={[
+                      styles.typeGain,
+                      item.gainDisplay >= 0 ? styles.gainUp : styles.gainDown,
+                    ]}
+                  >
+                    {item.gainDisplay >= 0 ? '▲' : '▼'}{' '}
+                    {formatNumber(Math.abs(item.gainDisplay))}
+                  </Text>
+                ) : null}
               </Pressable>
             ))}
           </View>
@@ -416,6 +447,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontVariant: ['tabular-nums'],
   },
+  typeGain: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+  gainUp: { color: '#0E9F6E' },
+  gainDown: { color: '#DC2626' },
 
   // Boş durum
   emptyBox: {
