@@ -75,6 +75,8 @@ function Root() {
 
   // --- Uygulama kilidi ---------------------------------------------------
   const [lockEnabled, setLockEnabled] = useState(false);
+  // Kilit tercihi diskten okunana kadar hiçbir içerik gösterilmez
+  const [lockChecked, setLockChecked] = useState(false);
   const [locked, setLocked] = useState(false);
   const lockEnabledRef = useRef(false);
   const lockedRef = useRef(false);
@@ -97,7 +99,8 @@ function Root() {
           setLocked(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLockChecked(true));
   }, []);
 
   // Kilit açıkken ekran görüntüsü ve "son uygulamalar" önizlemesi engellenir
@@ -255,8 +258,12 @@ function Root() {
         })}
       </View>
 
-      {/* Kilit ekranı — her şeyin üstünde */}
-      {locked ? (
+      {/* Kilit ekranı — her şeyin üstünde.
+          Tercih diskten okunana kadar (lockChecked=false) içerik gizli kalır,
+          böylece kilitli açılışta ana ekran bir an bile görünmez. */}
+      {!lockChecked ? (
+        <View style={styles.lockScreen} />
+      ) : locked ? (
         <View style={styles.lockScreen}>
           <Text style={styles.lockEmoji}>🔒</Text>
           <Text style={styles.lockTitle}>MyNestVault is locked</Text>
