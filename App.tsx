@@ -37,6 +37,7 @@ import mobileAds, {
 import ConverterScreen from './ConverterScreen';
 import PortfolioScreen from './PortfolioScreen';
 import ConfirmDialog from './ConfirmDialog';
+import { LanguageProvider, useT, type Lang } from './i18n';
 import { usePrices } from './priceStore';
 import { usePortfolio } from './portfolioStore';
 
@@ -55,22 +56,25 @@ type TabId = 'portfolio' | 'converter' | 'settings';
 // Uygulama kilidi tercihi cihazda saklanır
 const LOCK_KEY = '@mynestvault/app_lock';
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'portfolio', label: 'Portfolio', icon: '🪺' },
-  { id: 'converter', label: 'Converter', icon: '⇄' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+const TABS: { id: TabId; labelKey: string; icon: string }[] = [
+  { id: 'portfolio', labelKey: 'tabs.portfolio', icon: '🪺' },
+  { id: 'converter', labelKey: 'tabs.converter', icon: '⇄' },
+  { id: 'settings', labelKey: 'tabs.settings', icon: '⚙' },
 ];
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <Root />
+      <LanguageProvider>
+        <Root />
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }
 
 function Root() {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const [tab, setTab] = useState<TabId>('portfolio');
   const [adsReady, setAdsReady] = useState(false);
 
@@ -138,9 +142,9 @@ function Root() {
   }, []);
 
   const tryUnlock = useCallback(async () => {
-    const ok = await doAuthenticate('Unlock MyNestVault');
+    const ok = await doAuthenticate(t('lock.promptUnlock'));
     if (ok) setLocked(false);
-  }, [doAuthenticate]);
+  }, [doAuthenticate, t]);
 
   // Kilitlenince doğrulamayı otomatik başlat — YALNIZCA uygulama öndeyken
   useEffect(() => {
@@ -175,18 +179,18 @@ function Root() {
           return;
         }
         // Etkinleştirmeden önce kimliği doğrula
-        const ok = await doAuthenticate('Confirm to enable App Lock');
+        const ok = await doAuthenticate(t('lock.promptEnable'));
         if (!ok) return;
       } else {
         // KAPATIRKEN de doğrula — asıl korunması gereken yön burası:
         // telefonu eline alan biri kilidi sessizce kapatamamalı.
-        const ok = await doAuthenticate('Confirm to turn off App Lock');
+        const ok = await doAuthenticate(t('lock.promptDisable'));
         if (!ok) return;
       }
       setLockEnabled(value);
       AsyncStorage.setItem(LOCK_KEY, value ? '1' : '0').catch(() => {});
     },
-    [doAuthenticate]
+    [doAuthenticate, t]
   );
   // -----------------------------------------------------------------------
 
@@ -244,19 +248,19 @@ function Root() {
 
       {/* Sekme çubuğu */}
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        {TABS.map((t) => {
-          const active = tab === t.id;
+        {TABS.map((item) => {
+          const active = tab === item.id;
           return (
             <Pressable
-              key={t.id}
-              onPress={() => setTab(t.id)}
+              key={item.id}
+              onPress={() => setTab(item.id)}
               style={({ pressed }) => [styles.tabItem, pressed && styles.tabPressed]}
             >
               <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
-                {t.icon}
+                {item.icon}
               </Text>
               <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {t.label}
+                {t(item.labelKey)}
               </Text>
             </Pressable>
           );
@@ -273,24 +277,22 @@ function Root() {
       {/* Cihazda ekran kilidi kurulu değilse bilgilendirme */}
       <ConfirmDialog
         visible={showLockRequired}
-        title="Device lock required"
-        message="To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
-        confirmLabel="Got it"
+        title={t('lock.requiredTitle')}
+        message={t('lock.requiredMsg')}
+        confirmLabel={t('common.gotIt')}
         onConfirm={() => setShowLockRequired(false)}
       />
 
       {locked && lockChecked ? (
         <View style={styles.lockScreen}>
           <Text style={styles.lockEmoji}>🔒</Text>
-          <Text style={styles.lockTitle}>MyNestVault is locked</Text>
-          <Text style={styles.lockHint}>
-            Unlock with your fingerprint or screen lock.
-          </Text>
+          <Text style={styles.lockTitle}>{t('lock.title')}</Text>
+          <Text style={styles.lockHint}>{t('lock.hint')}</Text>
           <Pressable
             onPress={tryUnlock}
             style={({ pressed }) => [styles.lockBtn, pressed && styles.tabPressed]}
           >
-            <Text style={styles.lockBtnText}>Unlock</Text>
+            <Text style={styles.lockBtnText}>{t('lock.unlock')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -310,6 +312,13 @@ function SettingsScreen({
   onToggleLock: (value: boolean) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t, lang, setLang } = useT();
+
+  const LANGS: { id: Lang; label: string }[] = [
+    { id: 'en', label: 'English' },
+    { id: 'tr', label: 'Türkçe' },
+  ];
+
   return (
     <View style={styles.settingsRoot}>
       <LinearGradient
@@ -318,7 +327,7 @@ function SettingsScreen({
         end={{ x: 1, y: 1 }}
         style={[styles.settingsHeader, { paddingTop: insets.top + 14 }]}
       >
-        <Text style={styles.settingsTitle}>Settings</Text>
+        <Text style={styles.settingsTitle}>{t('settings.title')}</Text>
         <View style={styles.settingsAccent} />
       </LinearGradient>
 
@@ -326,45 +335,57 @@ function SettingsScreen({
         contentContainerStyle={styles.settingsScroll}
         showsVerticalScrollIndicator={false}
       >
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsAppName}>MyNestVault</Text>
-        <Text style={styles.settingsInfo}>Gold & Assets Tracker</Text>
-      </View>
-
-      <View style={styles.settingsCard}>
-        <View style={styles.settingsRow}>
-          <View style={styles.settingsRowText}>
-            <Text style={styles.settingsPrivacyTitle}>🔐 App Lock</Text>
-            <Text style={styles.settingsInfo}>
-              Require your phone's fingerprint or screen lock to open the app.
-            </Text>
-          </View>
-          <Switch
-            value={lockEnabled}
-            onValueChange={onToggleLock}
-            trackColor={{ true: '#6CDEBC', false: '#D6DEDD' }}
-            thumbColor={lockEnabled ? '#16A382' : '#FFFFFF'}
-          />
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsAppName}>MyNestVault</Text>
+          <Text style={styles.settingsInfo}>{t('settings.tagline')}</Text>
         </View>
-      </View>
 
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsPrivacyTitle}>🔒 Private by design</Text>
-        <Text style={styles.settingsInfo}>
-          All your assets are stored only on this device. Nothing is uploaded
-          anywhere.
-        </Text>
-      </View>
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsPrivacyTitle}>{t('settings.language')}</Text>
+          <View style={styles.langRow}>
+            {LANGS.map((l) => {
+              const active = lang === l.id;
+              return (
+                <Pressable
+                  key={l.id}
+                  onPress={() => setLang(l.id)}
+                  style={[styles.langChip, active && styles.langChipActive]}
+                >
+                  <Text style={[styles.langText, active && styles.langTextActive]}>
+                    {l.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
-      <View style={styles.settingsCard}>
-        <Text style={styles.settingsPrivacyTitle}>ℹ️ About prices</Text>
-        <Text style={styles.settingsInfo}>
-          Prices are estimates based on global spot market data and may be
-          delayed. Local jeweller, dealer or exchange prices can differ due to
-          workmanship, premiums and spreads. MyNestVault does not provide
-          investment advice.
-        </Text>
-      </View>
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsRow}>
+            <View style={styles.settingsRowText}>
+              <Text style={styles.settingsPrivacyTitle}>
+                {t('settings.appLock')}
+              </Text>
+              <Text style={styles.settingsInfo}>{t('settings.appLockDesc')}</Text>
+            </View>
+            <Switch
+              value={lockEnabled}
+              onValueChange={onToggleLock}
+              trackColor={{ true: '#6CDEBC', false: '#D6DEDD' }}
+              thumbColor={lockEnabled ? '#16A382' : '#FFFFFF'}
+            />
+          </View>
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsPrivacyTitle}>{t('settings.privacy')}</Text>
+          <Text style={styles.settingsInfo}>{t('settings.privacyDesc')}</Text>
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsPrivacyTitle}>{t('settings.prices')}</Text>
+          <Text style={styles.settingsInfo}>{t('settings.pricesDesc')}</Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -431,6 +452,19 @@ const styles = StyleSheet.create({
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingsRowText: { flex: 1 },
   settingsScroll: { paddingBottom: 24 },
+  langRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  langChip: {
+    flex: 1,
+    backgroundColor: '#F1F5F4',
+    borderWidth: 1,
+    borderColor: '#E2E9E8',
+    borderRadius: 14,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  langChipActive: { backgroundColor: '#EFFAF6', borderColor: '#16A382' },
+  langText: { fontSize: 15, fontWeight: '700', color: '#78888A' },
+  langTextActive: { color: '#0F5856', fontWeight: '800' },
 
   // Kilit ekranı
   lockScreen: {
