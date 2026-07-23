@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CurrNow",
+    "name": "MyNestVault",
     "slug": "currnow",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
       "versionCode": 12,
       "adaptiveIcon": {
         "foregroundImage": "./adaptive-icon.png",
-        "backgroundColor": "#12907C"
+        "backgroundColor": "#0F5856"
       }
     },
     "ios": {
