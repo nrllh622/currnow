@@ -2,14 +2,14 @@
   "expo": {
     "name": "MyNestVault",
     "slug": "currnow",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "currnow",
     "newArchEnabled": true,
     "android": {
       "package": "com.currnow.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./adaptive-icon.png",
         "backgroundColor": "#0F5856"
