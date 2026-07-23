@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Currency, CURATED, buildCurrencyList } from './currencies';
 import type { PriceState } from './priceStore';
+import { useT } from './i18n';
 
 type Rates = Record<string, number>;
 
@@ -41,6 +42,7 @@ function formatUpdatedAt(ts: number): string {
 
 export default function ConverterScreen({ prices }: { prices: PriceState }) {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const { snapshot, refreshing, error, refresh } = prices;
 
   const rates: Rates | null = snapshot ? snapshot.fxRates : null;
@@ -139,17 +141,15 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
       <View style={styles.loadingScreen}>
         {error ? (
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>
-              Could not load rates. Check your connection and try again.
-            </Text>
+            <Text style={styles.errorText}>{t('conv.error')}</Text>
             <Pressable onPress={refresh} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Try again</Text>
+              <Text style={styles.retryText}>{t('conv.retry')}</Text>
             </Pressable>
           </View>
         ) : (
           <>
             <ActivityIndicator size="large" color="#16A382" />
-            <Text style={styles.loadingText}>Loading rates…</Text>
+            <Text style={styles.loadingText}>{t('conv.loading')}</Text>
           </>
         )}
       </View>
@@ -162,7 +162,7 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
       <View style={styles.converterWrap}>
         {/* Amount (from) */}
         <View style={styles.amountCard}>
-          <Text style={styles.cardLabel}>Amount</Text>
+          <Text style={styles.cardLabel}>{t('conv.amount')}</Text>
           <View style={styles.cardRow}>
             <View style={[styles.badge, { backgroundColor: baseCur ? baseCur.color : '#22786E' }]}>
               <Text style={styles.badgeText}>{baseCur ? baseCur.symbol : '$'}</Text>
@@ -193,7 +193,9 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
 
         {/* Converted (to) */}
         <View style={[styles.amountCard, styles.convertedCard]}>
-          <Text style={[styles.cardLabel, styles.convertedLabel]}>Converted to</Text>
+          <Text style={[styles.cardLabel, styles.convertedLabel]}>
+            {t('conv.convertedTo')}
+          </Text>
           <View style={styles.cardRow}>
             <View style={[styles.badge, { backgroundColor: quoteCur ? quoteCur.color : '#2A5A96' }]}>
               <Text style={styles.badgeText}>{quoteCur ? quoteCur.symbol : '€'}</Text>
@@ -208,14 +210,16 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
           1 {base} = {formatNumber(pairRate)} {quote}
         </Text>
         {lastUpdatedLabel ? (
-          <Text style={styles.updatedLine}>Last updated: {lastUpdatedLabel}</Text>
+          <Text style={styles.updatedLine}>
+            {t('conv.lastUpdated', { time: lastUpdatedLabel })}
+          </Text>
         ) : null}
       </View>
 
       {/* Rates list header + search */}
       <View style={styles.ratesHeaderRow}>
-        <Text style={styles.ratesTitle}>Exchange Rates</Text>
-        <Text style={styles.ratesBase}>Base: {base}</Text>
+        <Text style={styles.ratesTitle}>{t('conv.rates')}</Text>
+        <Text style={styles.ratesBase}>{t('conv.base', { code: base })}</Text>
       </View>
 
       <View style={styles.searchWrap}>
@@ -224,7 +228,7 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search currency (e.g. EUR, Yen)"
+          placeholder={t('common.searchCurrency')}
           placeholderTextColor="#9CA3AF"
           autoCapitalize="characters"
           autoCorrect={false}
@@ -240,7 +244,7 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
 
   const ListEmpty = (
     <View style={styles.emptyBox}>
-      <Text style={styles.emptyText}>No currency matches “{search}”.</Text>
+      <Text style={styles.emptyText}>{t('conv.noMatch', { query: search })}</Text>
     </View>
   );
 
@@ -253,7 +257,7 @@ export default function ConverterScreen({ prices }: { prices: PriceState }) {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 14 }]}
       >
-        <Text style={styles.headerTitle}>Converter</Text>
+        <Text style={styles.headerTitle}>{t('conv.title')}</Text>
         <View style={styles.headerAccent} />
       </LinearGradient>
 
