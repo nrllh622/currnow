@@ -10,6 +10,7 @@ import { getAssetType, getGoldPiece } from './assetTypes';
 import type { Asset } from './portfolioStore';
 import type { AssetValuation } from './valuation';
 import ConfirmDialog from './ConfirmDialog';
+import { useT, pickLabel, type Lang } from './i18n';
 
 interface Props {
   visible: boolean;
@@ -31,7 +32,7 @@ function formatNumber(value: number): string {
 }
 
 // Varlığın içerik özeti: "500 USD", "2 × Çeyrek Altın", "12 g", "0.5 BTC"...
-function describeAsset(asset: Asset): string {
+function describeAsset(asset: Asset, lang: Lang): string {
   const type = getAssetType(asset.typeId);
   if (!type) return '';
   switch (type.valuationClass) {
@@ -42,7 +43,7 @@ function describeAsset(asset: Asset): string {
     case 'METAL': {
       if (asset.pieceId && asset.count) {
         const piece = getGoldPiece(asset.pieceId);
-        return `${asset.count} × ${piece ? piece.labelTR : asset.pieceId}`;
+        return `${asset.count} × ${piece ? pickLabel(piece, lang) : asset.pieceId}`;
       }
       if (asset.weightGrams) {
         if (type.id === 'copper') return `${asset.weightGrams / 1000} kg`;
@@ -68,6 +69,7 @@ export default function AssetListScreen({
   onClose,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { t, lang } = useT();
   const [pendingDelete, setPendingDelete] = useState<Asset | null>(null);
 
   if (!visible) return null;
@@ -76,7 +78,7 @@ export default function AssetListScreen({
     <View style={[styles.overlay, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         <Pressable onPress={onClose} hitSlop={10}>
-          <Text style={styles.topBarAction}>‹ Back</Text>
+          <Text style={styles.topBarAction}>‹ {t('common.back')}</Text>
         </Pressable>
         <Text style={styles.topBarTitle}>{title}</Text>
         <View style={styles.topBarSpacer} />
@@ -88,18 +90,18 @@ export default function AssetListScreen({
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No assets in this group.</Text>
+            <Text style={styles.emptyText}>{t('list.empty')}</Text>
           </View>
         }
         renderItem={({ item }) => (
           <View style={styles.row}>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle} numberOfLines={1}>
-                {item.asset.label ?? describeAsset(item.asset)}
+                {item.asset.label ?? describeAsset(item.asset, lang)}
               </Text>
               {item.asset.label ? (
                 <Text style={styles.rowSub} numberOfLines={1}>
-                  {describeAsset(item.asset)}
+                  {describeAsset(item.asset, lang)}
                 </Text>
               ) : null}
             </View>
@@ -134,16 +136,16 @@ export default function AssetListScreen({
 
       <ConfirmDialog
         visible={pendingDelete !== null}
-        title="Delete asset"
+        title={t('list.deleteTitle')}
         message={
           pendingDelete
-            ? `"${
-                pendingDelete.label ?? describeAsset(pendingDelete)
-              }" will be removed from your vault. This cannot be undone.`
+            ? t('list.deleteMsg', {
+                name: pendingDelete.label ?? describeAsset(pendingDelete, lang),
+              })
             : undefined
         }
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
         destructive
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete.id);
