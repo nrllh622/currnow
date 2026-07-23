@@ -45,7 +45,7 @@ import { usePortfolio } from './portfolioStore';
 // Kendi CANLI reklamına tıklamak AdMob hesabını KALICI olarak bloklayabilir.
 // Geliştirme/test boyunca true kalmalı (test reklamı gösterir).
 // !!! PRODUCTION BUILD ALMADAN ÖNCE false YAP !!!
-const USE_TEST_ADS = true;
+const USE_TEST_ADS = false;
 
 const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
 const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
@@ -240,7 +240,7 @@ function Root() {
       </View>
 
       {/* Uygulama geneli banner */}
-      {false && adsReady ?  (
+      {adsReady ? (
         <View style={styles.banner}>
           <BannerAd unitId={BANNER_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
         </View>
