@@ -9,10 +9,10 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   AppState,
   AppStateStatus,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -36,6 +36,7 @@ import mobileAds, {
 
 import ConverterScreen from './ConverterScreen';
 import PortfolioScreen from './PortfolioScreen';
+import ConfirmDialog from './ConfirmDialog';
 import { usePrices } from './priceStore';
 import { usePortfolio } from './portfolioStore';
 
@@ -77,6 +78,8 @@ function Root() {
   const [lockEnabled, setLockEnabled] = useState(false);
   // Kilit tercihi diskten okunana kadar hiçbir içerik gösterilmez
   const [lockChecked, setLockChecked] = useState(false);
+  // "Cihaz kilidi gerekli" bilgi diyaloğu
+  const [showLockRequired, setShowLockRequired] = useState(false);
   const [locked, setLocked] = useState(false);
   const lockEnabledRef = useRef(false);
   const lockedRef = useRef(false);
@@ -168,14 +171,16 @@ function Root() {
           // Yerel modül yüklü değilse (eski build) NONE kalır
         }
         if (level === LocalAuthentication.SecurityLevel.NONE) {
-          Alert.alert(
-            'Device lock required',
-            "To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
-          );
+          setShowLockRequired(true);
           return;
         }
-        // Etkinleştirmeden önce kimliği bir kez doğrula
+        // Etkinleştirmeden önce kimliği doğrula
         const ok = await doAuthenticate('Confirm to enable App Lock');
+        if (!ok) return;
+      } else {
+        // KAPATIRKEN de doğrula — asıl korunması gereken yön burası:
+        // telefonu eline alan biri kilidi sessizce kapatamamalı.
+        const ok = await doAuthenticate('Confirm to turn off App Lock');
         if (!ok) return;
       }
       setLockEnabled(value);
@@ -263,7 +268,18 @@ function Root() {
           böylece kilitli açılışta ana ekran bir an bile görünmez. */}
       {!lockChecked ? (
         <View style={styles.lockScreen} />
-      ) : locked ? (
+      ) : null}
+
+      {/* Cihazda ekran kilidi kurulu değilse bilgilendirme */}
+      <ConfirmDialog
+        visible={showLockRequired}
+        title="Device lock required"
+        message="To use App Lock, first set up a screen lock (PIN, pattern or fingerprint) in your phone's settings."
+        confirmLabel="Got it"
+        onConfirm={() => setShowLockRequired(false)}
+      />
+
+      {locked && lockChecked ? (
         <View style={styles.lockScreen}>
           <Text style={styles.lockEmoji}>🔒</Text>
           <Text style={styles.lockTitle}>MyNestVault is locked</Text>
@@ -306,6 +322,10 @@ function SettingsScreen({
         <View style={styles.settingsAccent} />
       </LinearGradient>
 
+      <ScrollView
+        contentContainerStyle={styles.settingsScroll}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.settingsCard}>
         <Text style={styles.settingsAppName}>MyNestVault</Text>
         <Text style={styles.settingsInfo}>Gold & Assets Tracker</Text>
@@ -335,6 +355,17 @@ function SettingsScreen({
           anywhere.
         </Text>
       </View>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsPrivacyTitle}>ℹ️ About prices</Text>
+        <Text style={styles.settingsInfo}>
+          Prices are estimates based on global spot market data and may be
+          delayed. Local jeweller, dealer or exchange prices can differ due to
+          workmanship, premiums and spreads. MyNestVault does not provide
+          investment advice.
+        </Text>
+      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -399,6 +430,7 @@ const styles = StyleSheet.create({
   settingsInfo: { fontSize: 13, color: '#78888A', marginTop: 2, lineHeight: 19 },
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingsRowText: { flex: 1 },
+  settingsScroll: { paddingBottom: 24 },
 
   // Kilit ekranı
   lockScreen: {
