@@ -240,7 +240,7 @@ function Root() {
       </View>
 
       {/* Uygulama geneli banner */}
-      {adsReady ? (
+      {false && adsReady ?  (
         <View style={styles.banner}>
           <BannerAd unitId={BANNER_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
         </View>
