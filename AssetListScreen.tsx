@@ -3,19 +3,13 @@
 // Portföyde bir tip kartına dokununca o tipteki varlıklar listelenir;
 // her satırda açıklama + güncel değer + silme butonu bulunur.
 
-import React from 'react';
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAssetType, getGoldPiece } from './assetTypes';
 import type { Asset } from './portfolioStore';
 import type { AssetValuation } from './valuation';
+import ConfirmDialog from './ConfirmDialog';
 
 interface Props {
   visible: boolean;
@@ -74,20 +68,9 @@ export default function AssetListScreen({
   onClose,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const [pendingDelete, setPendingDelete] = useState<Asset | null>(null);
 
   if (!visible) return null;
-
-  const confirmDelete = (asset: Asset) => {
-    const name = asset.label ?? describeAsset(asset);
-    Alert.alert(
-      'Delete asset',
-      `"${name}" will be removed from your vault. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => onDelete(asset.id) },
-      ]
-    );
-  };
 
   return (
     <View style={[styles.overlay, { paddingTop: insets.top }]}>
@@ -139,7 +122,7 @@ export default function AssetListScreen({
               ) : null}
             </View>
             <Pressable
-              onPress={() => confirmDelete(item.asset)}
+              onPress={() => setPendingDelete(item.asset)}
               hitSlop={8}
               style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
             >
@@ -147,6 +130,26 @@ export default function AssetListScreen({
             </Pressable>
           </View>
         )}
+      />
+
+      <ConfirmDialog
+        visible={pendingDelete !== null}
+        title="Delete asset"
+        message={
+          pendingDelete
+            ? `"${
+                pendingDelete.label ?? describeAsset(pendingDelete)
+              }" will be removed from your vault. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </View>
   );
