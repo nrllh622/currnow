@@ -24,6 +24,7 @@ import type { PortfolioState } from './portfolioStore';
 import { valuePortfolio } from './valuation';
 import AddAssetScreen from './AddAssetScreen';
 import AssetListScreen from './AssetListScreen';
+import { useT, pickLabel } from './i18n';
 
 // Seçilen gösterim para birimi cihazda saklanır
 const DISPLAY_KEY = '@mynestvault/display_currency';
@@ -52,6 +53,7 @@ interface Props {
 
 export default function PortfolioScreen({ prices, portfolio }: Props) {
   const insets = useSafeAreaInsets();
+  const { t, lang } = useT();
   const { snapshot } = prices;
   const { assets } = portfolio;
 
@@ -144,7 +146,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         {/* Toplam değer kartı */}
         <View style={styles.totalCard}>
           <View style={styles.totalTopRow}>
-            <Text style={styles.totalLabel}>Total Value</Text>
+            <Text style={styles.totalLabel}>{t('portfolio.total')}</Text>
             <Pressable
               onPress={() => setPickingCurrency(true)}
               style={styles.currencyChip}
@@ -167,9 +169,9 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
 
           {snapshot ? (
             <Text style={styles.updatedLine}>
-              Updated {formatUpdatedAt(snapshot.updatedAt)}
+              {t('portfolio.updated', { time: formatUpdatedAt(snapshot.updatedAt) })}
               {valuation && valuation.unpricedCount > 0
-                ? ` · ${valuation.unpricedCount} item(s) not priced yet`
+                ? ` · ${t('portfolio.notPriced', { n: valuation.unpricedCount })}`
                 : ''}
             </Text>
           ) : null}
@@ -180,21 +182,23 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
           <View style={styles.typeGrid}>
             {/* Gruplu tip kartları (Other hariç) */}
             {ASSET_TYPES.filter(
-              (t) => t.id !== 'other' && (countsByType[t.id] ?? 0) > 0
-            ).map((t) => {
-              const total = valuation ? valuation.totalsByType[t.id] ?? 0 : 0;
-              const count = countsByType[t.id] ?? 0;
-              const gain = t.id in gainsByType ? gainsByType[t.id] : null;
+              (x) => x.id !== 'other' && (countsByType[x.id] ?? 0) > 0
+            ).map((t2) => {
+              const total = valuation ? valuation.totalsByType[t2.id] ?? 0 : 0;
+              const count = countsByType[t2.id] ?? 0;
+              const gain = t2.id in gainsByType ? gainsByType[t2.id] : null;
               return (
                 <Pressable
-                  key={t.id}
-                  onPress={() => setViewingType(t.id)}
+                  key={t2.id}
+                  onPress={() => setViewingType(t2.id)}
                   style={({ pressed }) => [styles.typeCard, pressed && styles.addBtnPressed]}
                 >
-                  <Text style={styles.typeEmoji}>{t.emoji}</Text>
-                  <Text style={styles.typeLabel}>{t.labelEN}</Text>
+                  <Text style={styles.typeEmoji}>{t2.emoji}</Text>
+                  <Text style={styles.typeLabel}>{pickLabel(t2, lang)}</Text>
                   <Text style={styles.typeCount}>
-                    {count} item{count > 1 ? 's' : ''}
+                    {t(count === 1 ? 'common.item_one' : 'common.item_other', {
+                      n: count,
+                    })}
                   </Text>
                   <Text style={styles.typeValue}>
                     {formatNumber(total)} {displayCurrency}
@@ -219,9 +223,11 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
               >
                 <Text style={styles.typeEmoji}>📦</Text>
                 <Text style={styles.typeLabel} numberOfLines={1}>
-                  {item.asset.label ?? 'Other'}
+                  {item.asset.label ?? pickLabel({ labelEN: 'Other', labelTR: 'Diğer' }, lang)}
                 </Text>
-                <Text style={styles.typeCount}>Other</Text>
+                <Text style={styles.typeCount}>
+                  {pickLabel({ labelEN: 'Other', labelTR: 'Diğer' }, lang)}
+                </Text>
                 <Text style={styles.typeValue}>
                   {item.valueDisplay !== null
                     ? `${formatNumber(item.valueDisplay)} ${displayCurrency}`
@@ -244,11 +250,8 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         ) : (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyEmoji}>🪺</Text>
-            <Text style={styles.emptyTitle}>Your vault is empty</Text>
-            <Text style={styles.emptyText}>
-              Add your cash, gold, silver, crypto and other valuables to see
-              their live total value — all stored only on this device.
-            </Text>
+            <Text style={styles.emptyTitle}>{t('portfolio.emptyTitle')}</Text>
+            <Text style={styles.emptyText}>{t('portfolio.emptyDesc')}</Text>
           </View>
         )}
       </ScrollView>
@@ -258,7 +261,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         onPress={() => setAdding(true)}
         style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
       >
-        <Text style={styles.addBtnText}>＋ Add Asset</Text>
+        <Text style={styles.addBtnText}>{t('portfolio.addAsset')}</Text>
       </Pressable>
 
       {/* Varlık ekleme akışı (tam ekran kaplama) */}
@@ -277,8 +280,11 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
         visible={viewingType !== null}
         title={
           viewingType === 'other'
-            ? 'Other Assets'
-            : ASSET_TYPES.find((t) => t.id === viewingType)?.labelEN ?? ''
+            ? t('list.otherAssets')
+            : (() => {
+                const found = ASSET_TYPES.find((x) => x.id === viewingType);
+                return found ? pickLabel(found, lang) : '';
+              })()
         }
         items={
           valuation && viewingType
@@ -305,9 +311,9 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
               }}
               hitSlop={10}
             >
-              <Text style={styles.pickerAction}>‹ Back</Text>
+              <Text style={styles.pickerAction}>‹ {t('common.back')}</Text>
             </Pressable>
-            <Text style={styles.pickerTitle}>Show total in</Text>
+            <Text style={styles.pickerTitle}>{t('portfolio.showTotalIn')}</Text>
             <View style={styles.pickerSpacer} />
           </View>
           <View style={styles.pickerSearchWrap}>
@@ -316,7 +322,7 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
               style={styles.pickerSearchInput}
               value={currencySearch}
               onChangeText={setCurrencySearch}
-              placeholder="Search currency (e.g. EUR, Yen)"
+              placeholder={t('common.searchCurrency')}
               placeholderTextColor="#9CA3AF"
               autoCapitalize="characters"
               autoCorrect={false}
@@ -438,9 +444,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   typeEmoji: { fontSize: 26 },
-  // Varlık adı marka yeşilinde, değer koyu mürekkepte:
-  // ikisi birbirinden ve yeşil/kırmızı kâr-zarar okundan net ayrışır
-  typeLabel: { fontSize: 15, fontWeight: '700', color: '#0F5856', marginTop: 8 },
+  // Varlık adı sıcak altın tonunda, değer koyu mürekkepte, kâr/zarar yeşil-kırmızı:
+  // üç bilgi de birbirinden net ayrışır (ve altın teması ile uyumlu)
+  typeLabel: { fontSize: 15, fontWeight: '800', color: '#B8860B', marginTop: 8 },
   typeCount: { fontSize: 12, color: GREY, marginTop: 1 },
   typeValue: {
     fontSize: 16,
