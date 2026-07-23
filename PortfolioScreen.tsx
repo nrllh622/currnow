@@ -438,7 +438,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   typeEmoji: { fontSize: 26 },
-  typeLabel: { fontSize: 15, fontWeight: '700', color: INK, marginTop: 8 },
+  // Varlık adı marka yeşilinde, değer koyu mürekkepte:
+  // ikisi birbirinden ve yeşil/kırmızı kâr-zarar okundan net ayrışır
+  typeLabel: { fontSize: 15, fontWeight: '700', color: '#0F5856', marginTop: 8 },
   typeCount: { fontSize: 12, color: GREY, marginTop: 1 },
   typeValue: {
     fontSize: 16,
