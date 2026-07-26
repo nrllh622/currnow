@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   AppStateStatus,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -163,6 +164,23 @@ function Root() {
     });
     return () => sub.remove();
   }, [tryUnlock]);
+
+  // Sekme düzeyinde geri tuşu: Portfolio dışındaki bir sekmedeyken
+  // geri tuşu ana sekmeye (Portfolio) döner; zaten Portfolio'daysa
+  // olayı işlemez, Android uygulamayı arka plana alır.
+  // (Kaplama ekranları — varlık ekleme/liste/para seçici — kendi
+  //  BackHandler'ları ile önce çalışır ve olayı tüketir.)
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (locked) return true; // kilitliyken geri tuşu bir şey yapmasın
+      if (tab !== 'portfolio') {
+        setTab('portfolio');
+        return true;
+      }
+      return false; // Portfolio'da: varsayılan davranış (arka plana al)
+    });
+    return () => sub.remove();
+  }, [tab, locked]);
 
   const onToggleLock = useCallback(
     async (value: boolean) => {
