@@ -3,8 +3,9 @@
 // Adım 1: tip seç (11 tip) → Adım 2: tipe göre alanlar → Kaydet
 // Tam ekran kaplama (overlay) olarak çalışır; navigasyon bağımlılığı yoktur.
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   FlatList,
   Pressable,
   ScrollView,
@@ -109,6 +110,25 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
     resetForm();
     onClose();
   };
+
+  // Donanım geri tuşu: açık olan en içteki katmanı geri alır
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (pickerFor) {
+        setPickerFor(null);
+        setPickerSearch('');
+        return true;
+      }
+      if (typeId) {
+        setTypeId(null);
+        return true;
+      }
+      close();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, pickerFor, typeId]);
 
   // ------------------------------------------------------------------
   // Doğrulama: Kaydet butonu ancak geçerli girdiyle aktif olur
