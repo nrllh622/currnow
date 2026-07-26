@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Pressable,
   ScrollView,
@@ -71,6 +72,18 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
       })
       .catch(() => {});
   }, []);
+
+  // Donanım geri tuşu: gösterim para birimi seçici açıksa onu kapatır.
+  // (Varlık ekleme ve varlık listesi kaplamaları kendi geri tuşunu yönetir.)
+  useEffect(() => {
+    if (!pickingCurrency) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setPickingCurrency(false);
+      setCurrencySearch('');
+      return true;
+    });
+    return () => sub.remove();
+  }, [pickingCurrency]);
 
   const selectDisplayCurrency = (code: string) => {
     setDisplayCurrency(code);
