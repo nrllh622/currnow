@@ -3,8 +3,8 @@
 // Portföyde bir tip kartına dokununca o tipteki varlıklar listelenir;
 // her satırda açıklama + güncel değer + silme butonu bulunur.
 
-import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAssetType, getGoldPiece } from './assetTypes';
 import type { Asset } from './portfolioStore';
@@ -71,6 +71,20 @@ export default function AssetListScreen({
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   const [pendingDelete, setPendingDelete] = useState<Asset | null>(null);
+
+  // Donanım geri tuşu: silme onayı açıksa iptal eder, değilse listeyi kapatır
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (pendingDelete) {
+        setPendingDelete(null);
+        return true;
+      }
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, pendingDelete, onClose]);
 
   if (!visible) return null;
 
