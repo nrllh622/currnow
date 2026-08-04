@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.currnow.app",
-      "versionCode": 14,
+      "versionCode": 16,
       "permissions": [],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
