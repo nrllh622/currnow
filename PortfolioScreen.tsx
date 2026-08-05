@@ -170,9 +170,17 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
           </View>
 
           {!snapshot ? (
-            <View style={styles.totalLoading}>
-              <ActivityIndicator size="small" color="#16A382" />
-            </View>
+            prices.error && !prices.refreshing ? (
+              <Pressable onPress={prices.refresh} style={styles.retryInline}>
+                <Text style={styles.retryInlineText}>
+                  {t('portfolio.loadFailed')}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.totalLoading}>
+                <ActivityIndicator size="small" color="#16A382" />
+              </View>
+            )
           ) : (
             <Text style={styles.totalValue}>
               {formatNumber(valuation ? valuation.totalDisplay : 0)}{' '}
@@ -429,6 +437,17 @@ const styles = StyleSheet.create({
   },
   currencyChipText: { fontSize: 13, fontWeight: '700', color: '#0F5856' },
   totalLoading: { paddingVertical: 16, alignItems: 'flex-start' },
+  retryInline: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFFAF6',
+    borderWidth: 1,
+    borderColor: '#BEE8DA',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  retryInlineText: { fontSize: 14, fontWeight: '700', color: '#0F5856' },
   totalValue: {
     fontSize: 34,
     fontWeight: '800',
