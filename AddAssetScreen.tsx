@@ -392,6 +392,9 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
       <ScrollView
         contentContainerStyle={styles.formContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={true}
+        showsVerticalScrollIndicator={false}
       >
         {/* --- FX: nakit döviz + alacaklar --- */}
         {type.valuationClass === 'FX' ? (
@@ -478,9 +481,7 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
         <Text style={styles.sectionTitle}>{t('add.purchaseTitle')}</Text>
         <Text style={styles.sectionHint}>{t('add.purchaseHint')}</Text>
         {numberField(t('add.purchaseValue'), purchaseValue, setPurchaseValue, '0')}
-        {parseNum(purchaseValue) > 0
-          ? currencyField(t('add.purchaseCurrency'), purchaseCurrency, 'purchase')
-          : null}
+        {currencyField(t('add.purchaseCurrency'), purchaseCurrency, 'purchase')}
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
   },
 
   // Form
-  formContent: { paddingHorizontal: 16, paddingBottom: 30 },
+  formContent: { paddingHorizontal: 16, paddingBottom: 120 },
   fieldBlock: { marginTop: 14 },
   fieldLabel: { fontSize: 13, fontWeight: '700', color: GREY, marginTop: 14, marginBottom: 6 },
   input: {
