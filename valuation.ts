@@ -178,9 +178,11 @@ export function valuePortfolio(
       valueUSD !== null &&
       valueDisplay !== null &&
       asset.purchaseValue &&
-      asset.purchaseCurrency
+      asset.purchaseValue > 0
     ) {
-      const purchaseUSD = toUSD(asset.purchaseValue, asset.purchaseCurrency, snapshot);
+      // Eski kayıtlarda purchaseCurrency eksik olabilir → USD varsay
+      const purchaseCurrency = asset.purchaseCurrency ?? 'USD';
+      const purchaseUSD = toUSD(asset.purchaseValue, purchaseCurrency, snapshot);
       if (purchaseUSD !== null) {
         const purchaseDisplay = fromUSD(purchaseUSD, displayCurrency, snapshot);
         if (purchaseDisplay !== null) {
