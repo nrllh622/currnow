@@ -72,6 +72,7 @@ const en: Dict = {
   'portfolio.showTotalIn': 'Show total in',
   'portfolio.updated': 'Updated {time}',
   'portfolio.notPriced': '{n} item(s) not priced yet',
+  'portfolio.loadFailed': 'Prices unavailable — tap to retry',
   'portfolio.emptyTitle': 'Your vault is empty',
   'portfolio.emptyDesc':
     'Add your cash, gold, silver, crypto and other valuables to see their live total value — all stored only on this device.',
@@ -174,6 +175,7 @@ const tr: Dict = {
   'portfolio.showTotalIn': 'Toplamı şu birimde göster',
   'portfolio.updated': 'Güncellendi {time}',
   'portfolio.notPriced': '{n} kayıt henüz fiyatlanmadı',
+  'portfolio.loadFailed': 'Fiyatlar alınamadı — tekrar denemek için dokun',
   'portfolio.emptyTitle': 'Kasan henüz boş',
   'portfolio.emptyDesc':
     'Nakit, altın, gümüş, kripto ve diğer değerlerini ekle; toplam değerini anlık gör — hepsi yalnızca bu cihazda saklanır.',
