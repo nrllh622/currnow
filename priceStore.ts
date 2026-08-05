@@ -67,9 +67,14 @@ async function fetchGoldApiPrice(
 }
 
 async function fetchAllPrices(): Promise<PriceSnapshot> {
-  // İki kaynak paralel; metal/kripto sembolleri de kendi içinde paralel
-  const [fxRates, goldResults] = await Promise.all([
-    fetchFxRates(),
+  // İki kaynak birbirinden BAĞIMSIZ: biri düşse diğeri gelsin.
+  // (Promise.all yerine allSettled — ilk açılışta tek kaynağın
+  //  düşmesi tüm ekranı boş bırakmasın.)
+  const [fxOutcome, goldResults] = await Promise.all([
+    fetchFxRates().then(
+      (r) => ({ ok: true as const, rates: r }),
+      () => ({ ok: false as const, rates: {} as Record<string, number> })
+    ),
     Promise.all(GOLD_API_SYMBOLS.map((s) => fetchGoldApiPrice(s))),
   ]);
 
@@ -79,7 +84,14 @@ async function fetchAllPrices(): Promise<PriceSnapshot> {
     if (p !== null) usdPrices[symbol] = p;
   });
 
-  return { fxRates, usdPrices, updatedAt: Date.now() };
+  const gotAnyGold = Object.keys(usdPrices).length > 0;
+
+  // İkisi de tamamen boşsa gerçek bir hata var → çağırana bildir
+  if (!fxOutcome.ok && !gotAnyGold) {
+    throw new Error('all sources failed');
+  }
+
+  return { fxRates: fxOutcome.rates, usdPrices, updatedAt: Date.now() };
 }
 
 async function loadCachedSnapshot(): Promise<PriceSnapshot | null> {
