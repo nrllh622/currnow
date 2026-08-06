@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAssetType, getGoldPiece } from './assetTypes';
+import { getCryptoCoin } from './cryptoList';
 import type { Asset } from './portfolioStore';
 import type { AssetValuation } from './valuation';
 import ConfirmDialog from './ConfirmDialog';
@@ -51,8 +52,14 @@ function describeAsset(asset: Asset, lang: Lang): string {
       }
       return '';
     }
-    case 'CRYPTO':
+    case 'CRYPTO': {
+      // Genişletilmiş kripto: kaydedilen coin'in sembolü
+      if (asset.coingeckoId) {
+        const coin = getCryptoCoin(asset.coingeckoId);
+        return `${asset.units ?? 0} ${coin?.symbol ?? ''}`;
+      }
       return `${asset.units ?? 0} ${type.symbol ?? ''}`;
+    }
     case 'MANUAL':
       return `${asset.manualValue ?? 0} ${asset.manualCurrency ?? ''}`;
     default:
