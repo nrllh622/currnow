@@ -119,7 +119,15 @@ export function valueAssetUSD(
     }
 
     case 'CRYPTO': {
-      if (!type.symbol || !asset.units) return null;
+      if (!asset.units || asset.units <= 0) return null;
+      // Genişletilmiş kripto ('crypto' tipi): fiyat CoinGecko'dan gelir
+      if (asset.coingeckoId) {
+        const price = snapshot.cryptoPrices?.[asset.coingeckoId];
+        if (!price || price <= 0) return null;
+        return asset.units * price;
+      }
+      // Klasik BTC/ETH tipleri: fiyat gold-api'den (type.symbol)
+      if (!type.symbol) return null;
       const price = snapshot.usdPrices[type.symbol];
       if (!price || price <= 0) return null;
       return asset.units * price;
