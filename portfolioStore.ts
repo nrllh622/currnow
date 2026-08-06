@@ -44,6 +44,7 @@ export interface Asset {
 
   // CRYPTO
   units?: number;
+  coingeckoId?: string; // genişletilmiş kripto: hangi coin (cryptoList.ts id)
 
   // MANUAL
   manualValue?: number;
