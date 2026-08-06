@@ -25,6 +25,7 @@ import { Currency, CURATED, buildCurrencyList } from './currencies';
 import type { PriceState } from './priceStore';
 import type { Asset } from './portfolioStore';
 import { useT, pickLabel } from './i18n';
+import { CRYPTO_COINS, getCryptoCoin } from './cryptoList';
 
 type NewAsset = Omit<Asset, 'id' | 'createdAt'>;
 
@@ -59,6 +60,9 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
   const [weight, setWeight] = useState(''); // gram (bakırda kg)
   const [karatKey, setKaratKey] = useState('22k');
   const [units, setUnits] = useState('');
+  const [coinId, setCoinId] = useState('bitcoin'); // 'crypto' tipi için seçili coin
+  const [coinPicking, setCoinPicking] = useState(false);
+  const [coinSearch, setCoinSearch] = useState('');
   const [manualValue, setManualValue] = useState('');
   const [manualCurrency, setManualCurrency] = useState('USD');
   const [purchaseValue, setPurchaseValue] = useState('');
@@ -98,6 +102,9 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
     setWeight('');
     setKaratKey('22k');
     setUnits('');
+    setCoinId('bitcoin');
+    setCoinPicking(false);
+    setCoinSearch('');
     setManualValue('');
     setManualCurrency('USD');
     setPurchaseValue('');
@@ -115,6 +122,11 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (coinPicking) {
+        setCoinPicking(false);
+        setCoinSearch('');
+        return true;
+      }
       if (pickerFor) {
         setPickerFor(null);
         setPickerSearch('');
@@ -128,7 +140,7 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
       return true;
     });
     return () => sub.remove();
-  }, [visible, pickerFor, typeId]);
+  }, [visible, pickerFor, typeId, coinPicking]);
 
   // ------------------------------------------------------------------
   // Doğrulama: Kaydet butonu ancak geçerli girdiyle aktif olur
@@ -188,6 +200,8 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
       }
       case 'CRYPTO': {
         asset.units = parseNum(units);
+        // Genişletilmiş kripto tipinde seçilen coin kaydedilir
+        if (type.id === 'crypto') asset.coingeckoId = coinId;
         break;
       }
       case 'MANUAL': {
@@ -260,6 +274,74 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
               </View>
             </Pressable>
           )}
+        />
+      </View>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Coin seçici (kaplama) — 'crypto' tipi için
+  // ------------------------------------------------------------------
+  if (coinPicking) {
+    const q = coinSearch.trim().toUpperCase();
+    const filteredCoins = q
+      ? CRYPTO_COINS.filter(
+          (c) => c.symbol.includes(q) || c.name.toUpperCase().includes(q)
+        )
+      : CRYPTO_COINS;
+    return (
+      <View style={[styles.overlay, { paddingTop: insets.top }]}>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => setCoinPicking(false)} hitSlop={10}>
+            <Text style={styles.topBarAction}>‹ {t('common.back')}</Text>
+          </Pressable>
+          <Text style={styles.topBarTitle}>{t('add.selectCoin')}</Text>
+          <View style={styles.topBarSpacer} />
+        </View>
+        <View style={styles.searchWrap}>
+          <Text style={styles.searchIcon}>⌕</Text>
+          <TextInput
+            style={styles.searchInput}
+            value={coinSearch}
+            onChangeText={setCoinSearch}
+            placeholder={t('add.searchCoin')}
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+        </View>
+        <FlatList
+          data={filteredCoins}
+          keyExtractor={(item) => item.coingeckoId}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => {
+            const active = item.coingeckoId === coinId;
+            return (
+              <Pressable
+                onPress={() => {
+                  setCoinId(item.coingeckoId);
+                  setCoinPicking(false);
+                  setCoinSearch('');
+                }}
+                style={({ pressed }) => [
+                  styles.currencyRow,
+                  active && styles.coinRowActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={[styles.badge, { backgroundColor: '#B8860B' }]}>
+                  <Text style={styles.badgeText}>{item.symbol.slice(0, 3)}</Text>
+                </View>
+                <View style={styles.currencyText}>
+                  <Text style={styles.currencyCode}>{item.symbol}</Text>
+                  <Text style={styles.currencyName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                </View>
+                {active ? <Text style={styles.coinCheck}>✓</Text> : null}
+              </Pressable>
+            );
+          }}
         />
       </View>
     );
@@ -452,14 +534,38 @@ export default function AddAssetScreen({ visible, prices, onClose, onSave }: Pro
         ) : null}
 
         {/* --- CRYPTO --- */}
-        {type.valuationClass === 'CRYPTO'
-          ? numberField(
+        {type.valuationClass === 'CRYPTO' ? (
+          type.id === 'crypto' ? (
+            <>
+              <Text style={styles.fieldLabel}>{t('add.coin')}</Text>
+              <Pressable
+                onPress={() => setCoinPicking(true)}
+                style={({ pressed }) => [styles.currencyBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.currencyBtnText}>
+                  {getCryptoCoin(coinId)?.name ?? 'Bitcoin'} (
+                  {getCryptoCoin(coinId)?.symbol ?? 'BTC'})
+                </Text>
+                <Text style={styles.currencyBtnChevron}>▾</Text>
+              </Pressable>
+              {numberField(
+                t('add.cryptoAmount', {
+                  symbol: getCryptoCoin(coinId)?.symbol ?? '',
+                }),
+                units,
+                setUnits,
+                '0'
+              )}
+            </>
+          ) : (
+            numberField(
               t('add.cryptoAmount', { symbol: type.symbol ?? '' }),
               units,
               setUnits,
               '0'
             )
-          : null}
+          )
+        ) : null}
 
         {/* --- MANUAL: ziynet + diğer --- */}
         {type.valuationClass === 'MANUAL' ? (
@@ -658,4 +764,6 @@ const styles = StyleSheet.create({
   currencyText: { flex: 1 },
   currencyCode: { fontSize: 16, fontWeight: '700', color: INK },
   currencyName: { fontSize: 12, color: GREY, marginTop: 1 },
+  coinRowActive: { borderColor: '#E8C97A', backgroundColor: '#FDF9EF' },
+  coinCheck: { fontSize: 18, fontWeight: '800', color: '#B8860B' },
 });
