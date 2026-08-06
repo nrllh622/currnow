@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CryptoSymbol, MetalSymbol } from './assetTypes';
+import { coingeckoPriceUrl, CRYPTO_COINS } from './cryptoList';
 
 export const PRICE_REFRESH_MS = 90_000; // 90 saniye (1-2 dk bandı)
 
@@ -32,6 +33,8 @@ export interface PriceSnapshot {
   fxRates: Record<string, number>;
   /** USD birim fiyatlar. Metaller: USD/troy ons (HG: USD/pound). Kripto: USD/adet */
   usdPrices: Partial<Record<MetalSymbol | CryptoSymbol, number>>;
+  /** Genişletilmiş kripto fiyatları: { bitcoin: 64000, solana: 150, ... } (CoinGecko id → USD) */
+  cryptoPrices: Record<string, number>;
   /** Son başarılı tazeleme (epoch ms) */
   updatedAt: number;
 }
@@ -66,16 +69,37 @@ async function fetchGoldApiPrice(
   }
 }
 
+// Genişletilmiş kripto: CoinGecko keyless simple/price — TEK çağrı, tüm coinler.
+// Anahtarsız uç düşük rate-limitli; başarısız olursa boş döner, mevcut coin
+// fiyatları (BTC/ETH gold-api'den) etkilenmez.
+async function fetchCoinGeckoPrices(): Promise<Record<string, number>> {
+  try {
+    const res = await fetch(coingeckoPriceUrl());
+    if (!res.ok) return {}; // 429 (rate limit) vb. → sessizce boş
+    const json = await res.json();
+    const out: Record<string, number> = {};
+    for (const coin of CRYPTO_COINS) {
+      const entry = json[coin.coingeckoId];
+      const price = entry && typeof entry.usd === 'number' ? entry.usd : null;
+      if (price !== null && Number.isFinite(price) && price > 0) {
+        out[coin.coingeckoId] = price;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 async function fetchAllPrices(): Promise<PriceSnapshot> {
-  // İki kaynak birbirinden BAĞIMSIZ: biri düşse diğeri gelsin.
-  // (Promise.all yerine allSettled — ilk açılışta tek kaynağın
-  //  düşmesi tüm ekranı boş bırakmasın.)
-  const [fxOutcome, goldResults] = await Promise.all([
+  // Üç kaynak birbirinden BAĞIMSIZ: biri düşse diğerleri gelsin.
+  const [fxOutcome, goldResults, cryptoPrices] = await Promise.all([
     fetchFxRates().then(
       (r) => ({ ok: true as const, rates: r }),
       () => ({ ok: false as const, rates: {} as Record<string, number> })
     ),
     Promise.all(GOLD_API_SYMBOLS.map((s) => fetchGoldApiPrice(s))),
+    fetchCoinGeckoPrices(), // kendi içinde hata yakalar, boş {} döner
   ]);
 
   const usdPrices: PriceSnapshot['usdPrices'] = {};
@@ -86,12 +110,18 @@ async function fetchAllPrices(): Promise<PriceSnapshot> {
 
   const gotAnyGold = Object.keys(usdPrices).length > 0;
 
-  // İkisi de tamamen boşsa gerçek bir hata var → çağırana bildir
+  // İkisi de tamamen boşsa gerçek bir hata var → çağırana bildir.
+  // (CoinGecko opsiyonel; onun boş olması hata sayılmaz.)
   if (!fxOutcome.ok && !gotAnyGold) {
     throw new Error('all sources failed');
   }
 
-  return { fxRates: fxOutcome.rates, usdPrices, updatedAt: Date.now() };
+  return {
+    fxRates: fxOutcome.rates,
+    usdPrices,
+    cryptoPrices,
+    updatedAt: Date.now(),
+  };
 }
 
 async function loadCachedSnapshot(): Promise<PriceSnapshot | null> {
@@ -99,7 +129,11 @@ async function loadCachedSnapshot(): Promise<PriceSnapshot | null> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.fxRates && parsed.updatedAt) return parsed as PriceSnapshot;
+    if (parsed && parsed.fxRates && parsed.updatedAt) {
+      // Eski önbellekte cryptoPrices olmayabilir → boş nesneyle tamamla
+      if (!parsed.cryptoPrices) parsed.cryptoPrices = {};
+      return parsed as PriceSnapshot;
+    }
     return null;
   } catch {
     return null;
