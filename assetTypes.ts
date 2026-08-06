@@ -38,6 +38,7 @@ export const ASSET_TYPES: AssetTypeDef[] = [
   { id: 'copper',    valuationClass: 'METAL',  symbol: 'HG',  labelTR: 'Bakır',             labelEN: 'Copper',    emoji: '🔶' },
   { id: 'btc',       valuationClass: 'CRYPTO', symbol: 'BTC', labelTR: 'Bitcoin',           labelEN: 'Bitcoin',   emoji: '₿' },
   { id: 'eth',       valuationClass: 'CRYPTO', symbol: 'ETH', labelTR: 'Ethereum',          labelEN: 'Ethereum',  emoji: 'Ξ' },
+  { id: 'crypto',    valuationClass: 'CRYPTO',                labelTR: 'Kripto Para',       labelEN: 'Crypto',    emoji: '🪙' },
   { id: 'jewelry',   valuationClass: 'MANUAL',                labelTR: 'Ziynet & Mücevher', labelEN: 'Jewelry',   emoji: '💍' },
   // Alacaklar FX sınıfında: "Ahmet'e 500 USD" kaydının tutarı sabittir,
   // ama TL/seçili para birimi karşılığı kurla birlikte canlı güncellenir.
