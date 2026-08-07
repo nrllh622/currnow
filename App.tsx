@@ -77,6 +77,10 @@ function Root() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const [tab, setTab] = useState<TabId>('portfolio');
+  // Portfolio sekmesine basıldığında artan sayaç — zaten Portfolio'dayken
+  // basılsa bile (Varlık Ekle kaplaması açıkken) PortfolioScreen'e "kaplamaları
+  // kapat" sinyali gönderir.
+  const [portfolioResetSignal, setPortfolioResetSignal] = useState(0);
   const [adsReady, setAdsReady] = useState(false);
 
   // --- Uygulama kilidi ---------------------------------------------------
@@ -247,7 +251,12 @@ function Root() {
       {/* Ekranlar: aktif olmayanlar gizlenir ama unmount edilmez */}
       <View style={styles.screens}>
         <View style={show(tab === 'portfolio')}>
-          <PortfolioScreen prices={prices} portfolio={portfolio} />
+          <PortfolioScreen
+            prices={prices}
+            portfolio={portfolio}
+            isActive={tab === 'portfolio'}
+            resetSignal={portfolioResetSignal}
+          />
         </View>
         <View style={show(tab === 'converter')}>
           <ConverterScreen prices={prices} />
@@ -271,7 +280,13 @@ function Root() {
           return (
             <Pressable
               key={item.id}
-              onPress={() => setTab(item.id)}
+              onPress={() => {
+                if (item.id === 'portfolio') {
+                  // Portfolio'ya her basışta kaplamaları kapat (zaten oradaysak bile)
+                  setPortfolioResetSignal((n) => n + 1);
+                }
+                setTab(item.id);
+              }}
               style={({ pressed }) => [styles.tabItem, pressed && styles.tabPressed]}
             >
               <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
