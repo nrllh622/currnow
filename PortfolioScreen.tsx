@@ -51,9 +51,16 @@ function formatUpdatedAt(ts: number): string {
 interface Props {
   prices: PriceState;
   portfolio: PortfolioState;
+  isActive?: boolean;
+  resetSignal?: number;
 }
 
-export default function PortfolioScreen({ prices, portfolio }: Props) {
+export default function PortfolioScreen({
+  prices,
+  portfolio,
+  isActive = true,
+  resetSignal = 0,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   const { snapshot } = prices;
@@ -85,6 +92,28 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
     });
     return () => sub.remove();
   }, [pickingCurrency]);
+
+  // Başka sekmeye geçilince (alt sekme bar'ından) açık olan tüm kaplamaları
+  // kapat — böylece Portfolio'ya dönünce doğrudan portföy görünür, kaplama
+  // üstte takılı kalmaz.
+  useEffect(() => {
+    if (!isActive) {
+      setAdding(false);
+      setViewingType(null);
+      setPickingCurrency(false);
+    }
+  }, [isActive]);
+
+  // Portfolio sekmesine tekrar basıldığında (zaten Portfolio'dayken, örn.
+  // Varlık Ekle açıkken) kaplamaları kapat. resetSignal App.tsx'ten her
+  // basışta artar. İlk render'da (0) tetiklenmemesi için 0'ı atlıyoruz.
+  useEffect(() => {
+    if (resetSignal > 0) {
+      setAdding(false);
+      setViewingType(null);
+      setPickingCurrency(false);
+    }
+  }, [resetSignal]);
 
   const selectDisplayCurrency = (code: string) => {
     setDisplayCurrency(code);
