@@ -23,6 +23,7 @@ import { Currency, CURATED, buildCurrencyList } from './currencies';
 import type { PriceState } from './priceStore';
 import type { PortfolioState } from './portfolioStore';
 import { valuePortfolio } from './valuation';
+import { computeZakat } from './zakat';
 import AddAssetScreen from './AddAssetScreen';
 import AssetListScreen from './AssetListScreen';
 import { useT, pickLabel } from './i18n';
@@ -137,6 +138,13 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
   }, [valuation]);
 
   const hasAssets = assets.length > 0;
+
+  // Zekat/nisab — yalnızca Türkçe arayüzde gösterilir (dini kavram).
+  const [zakatOpen, setZakatOpen] = useState(false);
+  const zakat = useMemo(() => {
+    if (lang !== 'tr' || !snapshot) return null;
+    return computeZakat(assets, snapshot, displayCurrency);
+  }, [lang, assets, snapshot, displayCurrency]);
 
   return (
     <View style={styles.root}>
@@ -275,6 +283,67 @@ export default function PortfolioScreen({ prices, portfolio }: Props) {
             <Text style={styles.emptyText}>{t('portfolio.emptyDesc')}</Text>
           </View>
         )}
+
+        {/* Zekat/nisab kartı — yalnızca Türkçe arayüzde ve varlık varken */}
+        {zakat && hasAssets ? (
+          <View style={styles.zakatCard}>
+            <Pressable
+              onPress={() => setZakatOpen((v) => !v)}
+              style={styles.zakatHeader}
+            >
+              <View style={styles.zakatHeaderLeft}>
+                <Text style={styles.zakatIcon}>☪️</Text>
+                <Text style={styles.zakatTitle}>Zekat Hesabı</Text>
+              </View>
+              <Text style={styles.zakatChevron}>{zakatOpen ? '▴' : '▾'}</Text>
+            </Pressable>
+
+            {zakatOpen ? (
+              !zakat.available ? (
+                <Text style={styles.zakatNote}>
+                  Hesaplama için fiyat verisi bekleniyor.
+                </Text>
+              ) : (
+                <View style={styles.zakatBody}>
+                  <View style={styles.zakatRow}>
+                    <Text style={styles.zakatLabel}>Zekata tabi toplam</Text>
+                    <Text style={styles.zakatValue}>
+                      {formatNumber(zakat.zakatableTotal)} {displayCurrency}
+                    </Text>
+                  </View>
+                  <View style={styles.zakatRow}>
+                    <Text style={styles.zakatLabel}>
+                      Nisab (80,18 g altın)
+                    </Text>
+                    <Text style={styles.zakatValue}>
+                      {formatNumber(zakat.nisabValue)} {displayCurrency}
+                    </Text>
+                  </View>
+                  <View style={styles.zakatDivider} />
+                  {zakat.meetsNisab ? (
+                    <View style={styles.zakatRow}>
+                      <Text style={styles.zakatDueLabel}>
+                        Zekat (%2,5)
+                      </Text>
+                      <Text style={styles.zakatDueValue}>
+                        {formatNumber(zakat.zakatDue)} {displayCurrency}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.zakatNote}>
+                      Varlıkların nisab miktarının altında; zekat gerekmiyor.
+                    </Text>
+                  )}
+                  <Text style={styles.zakatDisclaimer}>
+                    Bu bir tahmindir. Ziynet ve kişisel eşyalar hariç tutulur;
+                    borçlarınız düşülmemiştir. Kesin hüküm için Diyanet İşleri
+                    Başkanlığı'na danışın.
+                  </Text>
+                </View>
+              )
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Varlık ekle butonu */}
@@ -448,6 +517,55 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   retryInlineText: { fontSize: 14, fontWeight: '700', color: '#0F5856' },
+  zakatCard: {
+    marginHorizontal: 16,
+    marginTop: 18,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E3EAE9',
+    overflow: 'hidden',
+  },
+  zakatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  zakatHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
+  zakatIcon: { fontSize: 18, marginRight: 8 },
+  zakatTitle: { fontSize: 16, fontWeight: '700', color: '#122E30' },
+  zakatChevron: { fontSize: 16, color: '#5B6B6C' },
+  zakatBody: { paddingHorizontal: 16, paddingBottom: 16 },
+  zakatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  zakatLabel: { fontSize: 14, color: '#5B6B6C' },
+  zakatValue: { fontSize: 14, fontWeight: '600', color: '#122E30' },
+  zakatDivider: {
+    height: 1,
+    backgroundColor: '#E3EAE9',
+    marginVertical: 8,
+  },
+  zakatDueLabel: { fontSize: 15, fontWeight: '700', color: '#0F5856' },
+  zakatDueValue: { fontSize: 16, fontWeight: '800', color: '#0F5856' },
+  zakatNote: {
+    fontSize: 13,
+    color: '#5B6B6C',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    lineHeight: 18,
+  },
+  zakatDisclaimer: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 10,
+    lineHeight: 15,
+  },
   totalValue: {
     fontSize: 34,
     fontWeight: '800',
