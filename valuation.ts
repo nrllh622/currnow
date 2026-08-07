@@ -21,6 +21,13 @@ import {
   type MetalSymbol,
 } from './assetTypes';
 
+// Eski 'btc'/'eth' tiplerinin sembolünü CoinGecko id'sine eşler.
+// Böylece tüm kripto tek kaynaktan (CoinGecko) fiyatlanır, çift fiyat olmaz.
+const SYMBOL_TO_COINGECKO: Record<string, string> = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+};
+
 // ---------------------------------------------------------------------------
 // Para birimi çevrimleri
 // ---------------------------------------------------------------------------
@@ -120,15 +127,13 @@ export function valueAssetUSD(
 
     case 'CRYPTO': {
       if (!asset.units || asset.units <= 0) return null;
-      // Genişletilmiş kripto ('crypto' tipi): fiyat CoinGecko'dan gelir
-      if (asset.coingeckoId) {
-        const price = snapshot.cryptoPrices?.[asset.coingeckoId];
-        if (!price || price <= 0) return null;
-        return asset.units * price;
-      }
-      // Klasik BTC/ETH tipleri: fiyat gold-api'den (type.symbol)
-      if (!type.symbol) return null;
-      const price = snapshot.usdPrices[type.symbol];
+      // TÜM kripto fiyatları TEK kaynaktan (CoinGecko) gelir — tutarlılık için.
+      // - 'crypto' tipi: kullanıcının seçtiği coin (asset.coingeckoId)
+      // - eski 'btc'/'eth' tipleri: type.symbol'den CoinGecko id'sine eşle
+      const coingeckoId =
+        asset.coingeckoId ?? SYMBOL_TO_COINGECKO[type.symbol ?? ''];
+      if (!coingeckoId) return null;
+      const price = snapshot.cryptoPrices?.[coingeckoId];
       if (!price || price <= 0) return null;
       return asset.units * price;
     }
