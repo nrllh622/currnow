@@ -31,7 +31,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as ScreenCapture from 'expo-screen-capture';
-import * as StoreReview from 'expo-store-review';
 import mobileAds, {
   AdsConsent,
   BannerAd,
@@ -377,15 +376,15 @@ function SettingsScreen({
   }, [t]);
 
   const onRate = useCallback(async () => {
+    // Kullanıcının bilerek bastığı "puan ver" butonu her zaman Play mağaza
+    // sayfasını açar — öngörülebilir davranış. (Uygulama içi puan penceresi
+    // Google tarafından kotalıdır ve çağrıldığında sessizce hiçbir şey
+    // yapabilir; buton için bu kafa karıştırıcı olur.)
     try {
-      // Play'in uygulama içi puan penceresini dene; yoksa mağaza sayfasını aç
-      if (await StoreReview.isAvailableAsync()) {
-        await StoreReview.requestReview();
-      } else {
-        Linking.openURL(PLAY_URL);
-      }
+      await Linking.openURL('market://details?id=com.currnow.app');
     } catch {
-      Linking.openURL(PLAY_URL);
+      // Play uygulaması yoksa web linkine düş
+      Linking.openURL(PLAY_URL).catch(() => {});
     }
   }, []);
 
