@@ -9,11 +9,14 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   AppState,
   AppStateStatus,
   BackHandler,
+  Linking,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -28,6 +31,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as ScreenCapture from 'expo-screen-capture';
+import * as StoreReview from 'expo-store-review';
 import mobileAds, {
   AdsConsent,
   BannerAd,
@@ -41,6 +45,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { LanguageProvider, useT, type Lang } from './i18n';
 import { usePrices } from './priceStore';
 import { usePortfolio } from './portfolioStore';
+import { checkForUpdate } from './inAppUpdate';
 
 // --- AdMob ---------------------------------------------------------------
 // Kendi CANLI reklamına tıklamak AdMob hesabını KALICI olarak bloklayabilir.
@@ -51,6 +56,10 @@ const USE_TEST_ADS = false;
 const REAL_BANNER_UNIT_ID = 'ca-app-pub-2984878117732696/7056959989';
 const BANNER_UNIT_ID = USE_TEST_ADS ? TestIds.BANNER : REAL_BANNER_UNIT_ID;
 // ------------------------------------------------------------------------
+
+// Uygulamanın Play Store adresi (paylaşım ve puanlama için)
+const PLAY_URL =
+  'https://play.google.com/store/apps/details?id=com.currnow.app';
 
 type TabId = 'portfolio' | 'converter' | 'settings';
 
@@ -97,6 +106,11 @@ function Root() {
   useEffect(() => {
     lockEnabledRef.current = lockEnabled;
   }, [lockEnabled]);
+
+  // Açılışta Play'de yeni sürüm var mı kontrol et (yalnızca gerçek Play sürümü)
+  useEffect(() => {
+    checkForUpdate();
+  }, []);
 
   useEffect(() => {
     lockedRef.current = locked;
@@ -352,6 +366,29 @@ function SettingsScreen({
     { id: 'tr', label: 'Türkçe' },
   ];
 
+  const onShare = useCallback(async () => {
+    try {
+      await Share.share({
+        message: `${t('settings.shareText')}\n${PLAY_URL}`,
+      });
+    } catch {
+      // paylaşım iptal edilirse sessizce geç
+    }
+  }, [t]);
+
+  const onRate = useCallback(async () => {
+    try {
+      // Play'in uygulama içi puan penceresini dene; yoksa mağaza sayfasını aç
+      if (await StoreReview.isAvailableAsync()) {
+        await StoreReview.requestReview();
+      } else {
+        Linking.openURL(PLAY_URL);
+      }
+    } catch {
+      Linking.openURL(PLAY_URL);
+    }
+  }, []);
+
   return (
     <View style={styles.settingsRoot}>
       <LinearGradient
@@ -419,6 +456,26 @@ function SettingsScreen({
           <Text style={styles.settingsPrivacyTitle}>{t('settings.prices')}</Text>
           <Text style={styles.settingsInfo}>{t('settings.pricesDesc')}</Text>
         </View>
+
+        <View style={styles.settingsCard}>
+          <Pressable
+            onPress={onShare}
+            style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}
+          >
+            <Text style={styles.actionIcon}>📤</Text>
+            <Text style={styles.actionLabel}>{t('settings.share')}</Text>
+            <Text style={styles.actionChevron}>›</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
+          <Pressable
+            onPress={onRate}
+            style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}
+          >
+            <Text style={styles.actionIcon}>⭐</Text>
+            <Text style={styles.actionLabel}>{t('settings.rate')}</Text>
+            <Text style={styles.actionChevron}>›</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
   );
@@ -485,6 +542,16 @@ const styles = StyleSheet.create({
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingsRowText: { flex: 1 },
   settingsScroll: { paddingBottom: 24 },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  actionPressed: { opacity: 0.6 },
+  actionIcon: { fontSize: 18, marginRight: 12 },
+  actionLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#122E30' },
+  actionChevron: { fontSize: 22, color: '#9CA3AF' },
+  actionDivider: { height: 1, backgroundColor: '#EEF3F2', marginVertical: 4 },
   langRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   langChip: {
     flex: 1,
