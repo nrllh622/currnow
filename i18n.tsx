@@ -66,6 +66,10 @@ const en: Dict = {
   'settings.prices': 'ℹ️ About prices',
   'settings.pricesDesc':
     'Prices are estimates based on global spot market data and may be delayed. Local jeweller, dealer or exchange prices can differ due to workmanship, premiums and spreads. MyNestVault does not provide investment advice.',
+  'settings.share': 'Share app',
+  'settings.rate': 'Rate on Google Play',
+  'settings.shareText':
+    'I track everything I own — gold, cash, silver and crypto — in one private vault with MyNestVault:',
 
   // Portföy
   'portfolio.total': 'Total Value',
@@ -172,6 +176,10 @@ const tr: Dict = {
   'settings.prices': 'ℹ️ Fiyatlar hakkında',
   'settings.pricesDesc':
     'Fiyatlar küresel spot piyasa verilerine dayalı tahminlerdir ve gecikmeli olabilir. Kuyumcu, döviz bürosu veya bayi fiyatları işçilik, prim ve makas farkı nedeniyle değişebilir. MyNestVault yatırım tavsiyesi vermez.',
+  'settings.share': 'Uygulamayı paylaş',
+  'settings.rate': "Google Play'de puan ver",
+  'settings.shareText':
+    'Sahip olduğum her şeyi — altın, döviz, gümüş ve kripto — MyNestVault ile tek kasada takip ediyorum:',
 
   // Portföy
   'portfolio.total': 'Toplam Değer',
