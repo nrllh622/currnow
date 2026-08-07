@@ -25,7 +25,7 @@ const GOLD_API_BASE = 'https://api.gold-api.com/price';
 const STORAGE_KEY = '@mynestvault/price_snapshot_v1';
 
 const GOLD_API_SYMBOLS: (MetalSymbol | CryptoSymbol)[] = [
-  'XAU', 'XAG', 'XPT', 'XPD', 'HG', 'BTC', 'ETH',
+  'XAU', 'XAG', 'XPT', 'XPD', 'HG',
 ];
 
 export interface PriceSnapshot {
